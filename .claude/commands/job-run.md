@@ -102,15 +102,23 @@ already ≥ `settings.readyCap` — the owner has enough to look at.
    - If every error says "Network policy blocked …": add one digest error "Job sites are
      blocked by this cloud environment's network settings — allow Full network access
      (see JOB_PIPELINE.md)" and rely on email alerts + discovery for today.
+   - Keep the watchlist honest (save `sources/main` afterwards): a board that fetched without
+     error gets `verified: true`. A board that fails with HTTP 404 (wrong slug or site name)
+     gets `enabled: false` and its firm goes back to `status: "unresolved"` so discovery tries
+     again. "Network policy blocked" says nothing about the board: leave it as it is.
 2. Job-alert links from step 2: for each, `$JP job --url <link> --out $W/alert-<n>.json`. If it's
    LinkedIn/Indeed (not fetchable), WebSearch for the same title + company on the company's
    own careers site and use that URL instead. Add good ones to the candidate list.
 3. Discovery (≤ 10 web searches per run):
-   - `sources/main.targetFirms` with `status: "unresolved"`: WebSearch "<firm> careers
-     <city>" → find the careers board URL → `$JP board --url <url>`. If it parses, add to
-     `watchlist` (`{..., company, enabled: true, addedAt, why: "target firm"}`) and set the
-     firm `status: "found"`; if the firm uses its own site, `status: "custom"` with
-     `careersUrl` (step 4.2 handles single postings from such sites); if nothing, `"none"`.
+   - `sources/main.targetFirms` with `status: "unresolved"`: search the job-board hosts
+     directly, e.g. `"<firm>" (site:myworkdayjobs.com OR site:greenhouse.io OR site:lever.co OR site:ashbyhq.com OR site:smartrecruiters.com)`;
+     plain "<firm> careers" searches mostly return aggregators. Take any board URL you find
+     and run `$JP board --url <url>` — it only parses the URL and needs no network. If it
+     parses, add it to `watchlist` (`{..., company, enabled: true, verified: false, addedAt,
+     why: "target firm"}`) and set the firm `status: "found"`, **even when job sites are
+     blocked today** — the next fetch verifies it. Only if the firm has no such board, use
+     `status: "custom"` with its own `careersUrl` (step 4.2 handles single postings from such
+     sites); if nothing at all, `"none"`.
    - 2–4 searches for open roles, e.g. `site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com "<role>" "<city>"`
      and `site:myworkdayjobs.com "<role>" "<city>"`. New boards → `watchlist`.
    - Save `sources/main` (update with its version).

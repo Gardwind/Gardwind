@@ -122,7 +122,7 @@ for interviews, built from the CV.
 
 ```json
 {
-  "watchlist": [{"ats": "greenhouse", "slug": "acme", "company": "Acme", "enabled": true, "addedAt": "", "why": ""},
+  "watchlist": [{"ats": "greenhouse", "slug": "acme", "company": "Acme", "enabled": true, "verified": false, "addedAt": "", "why": ""},
                 {"ats": "workday", "host": "x.wd1.myworkdayjobs.com", "tenant": "x", "site": "X_Careers", "company": "X", "search": ["analyst"]}],
   "aggregators": [],
   "searchTerms": [],
