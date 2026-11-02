@@ -225,6 +225,9 @@ function toast(msg) {
 const contactText = (c) => (!c ? '' : typeof c === 'string' ? c : [c.name, c.role, c.email].filter(Boolean).join(' · '));
 const fitClass = (s) => (s >= 80 ? 'strong' : s >= 65 ? 'good' : '');
 const byFit = (a, b) => (b.fit?.score ?? -1) - (a.fit?.score ?? -1);
+// Soonest deadline first, then best fit.
+const dueOf = (j) => j.deadline || j.blocker?.deadline || '9999-12-31';
+const byDue = (a, b) => dueOf(a).localeCompare(dueOf(b)) || byFit(a, b);
 function inQuiet() {
   const d = today();
   return (S.settings?.quietRanges || []).find((r) => r.from <= d && d <= r.to) || null;
@@ -382,10 +385,11 @@ function stuckCard(j) {
   return `<article class="card urgent" data-id="${esc(j.id)}">
     <div class="row"><div class="title"><h3>${esc(j.role)}</h3><p>${esc(j.company)}${j.location ? ' · ' + esc(j.location) : ''}</p></div><span class="pill s-${esc(j.status)}">${esc(STATUS[j.status] || j.status)}</span></div>
     <p class="why">${esc(b.action || b.detail || 'Claude could not finish this one on its own.')}</p>
-    ${b.deadline ? `<div class="chips"><span class="chip warn">Deadline ${esc(fmtDay(b.deadline))}</span></div>` : ''}
+    ${(b.deadline || j.deadline) ? `<div class="chips"><span class="chip warn">Deadline ${esc(fmtDay(b.deadline || j.deadline))}</span></div>` : ''}
     <div class="actions">
       ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">Open application ↗</a>` : ''}
       ${m.cvPdfUrl ? `<a class="btn quiet small" href="${esc(m.cvPdfUrl)}" target="_blank" rel="noopener">CV PDF ↗</a>` : ''}
+      ${m.letterPdfUrl ? `<a class="btn quiet small" href="${esc(m.letterPdfUrl)}" target="_blank" rel="noopener">Letter PDF ↗</a>` : ''}
       ${S.canWrite ? `<button class="btn ghost small" data-act="applied" data-id="${esc(j.id)}">I applied</button><button class="btn ghost small" data-act="skip" data-id="${esc(j.id)}" data-reason="Gave up">Skip</button>` : ''}
       <button class="link push" data-act="toggle" data-id="${esc(j.id)}" aria-expanded="${open}">${open ? 'Hide' : 'CV & answers'}</button>
     </div>
@@ -417,7 +421,7 @@ function viewToday() {
   const d = latestDigest();
   const quiet = inQuiet();
   const qs = S.questions.filter((q) => q.status === 'open').sort((a, b) => (a.priority || 2) - (b.priority || 2));
-  const stuck = S.jobs.filter((j) => j.status === 'blocked' || j.status === 'manual');
+  const stuck = S.jobs.filter((j) => j.status === 'blocked' || j.status === 'manual').sort(byDue);
   const ready = S.jobs.filter((j) => j.status === 'ready').sort(byFit);
   const queued = S.jobs.filter((j) => j.status === 'approved' || j.status === 'applying');
   const strong = ready.filter((j) => (j.fit?.score ?? 0) >= 80 && !(j.flags?.languageGaps || []).length && j.flags?.scam?.risk !== 'medium');
