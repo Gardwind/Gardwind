@@ -22,6 +22,13 @@ Keep a running list of what you did, what needs the owner, and errors — step 9
 
 1. `$JP selftest`. If a check fails, note it under errors and skip steps that need it
    (Chromium → no submitting or PDFs).
+   Check which tools this session has. **No Gmail tools** (`mcp__…Gmail…`): skip step 2,
+   don't submit to forms that email a verification code (you can't read it), and add one
+   needsYou line: "The daily run can't read your Gmail: open your scheduled tasks on claude.ai,
+   edit 'Job hunt daily run' and add the Gmail and Google Calendar connectors." **No Google
+   Calendar tools**: skip step 0.5 and never propose interview times (draft "I'm flexible, please
+   suggest times" instead). **No `ArtifactData` tool**: stop and end with a message saying the
+   board can't be reached; there is nothing else useful to do.
 2. Load the board into files — one `ArtifactData` `list` per collection with
    `out_dir: /tmp/jobrun/state` and `query.limit: 1000`:
    `settings`, `profile`, `sources`, `questions`, `jobs`, `digests`, `learning`.
@@ -186,7 +193,11 @@ Act on clear patterns: skipped ≥ 3 times for the same reason → add to
    saying exactly what to tap or do), `done`, `replies`, `upcoming` (next 7 days), `stats`
    (`appliedWeek`, `replyRate`, `ready`, `interviews`), `errors` (plain sentences).
 2. `settings/main.lastRun = {at, ok, summary}` (update with its version).
-3. Notification — `PushNotification`, one line, only if there is something to do:
-   "4 jobs to approve · interview invite from X — open Job Hunt Board". In `quiet`: only for
-   an offer or an interview deadline within 48 h.
-4. Final message of this session: the digest headline plus one line per section.
+3. Notification — the scheduled task pushes this session's **final message** to the owner's
+   phone, so make its first line the thing to act on: "4 jobs to approve · interview invite
+   from X — open Job Hunt Board". If nothing needs the owner, start with "Nothing needs you
+   today." In `quiet`, keep it to "Nothing needs you today." unless there is an offer or an
+   interview deadline within 48 h. (If a `PushNotification` tool exists, you may also send the
+   same first line through it.)
+4. Final message of this session: that first line, then the digest headline and one line per
+   section.
