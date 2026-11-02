@@ -34,11 +34,19 @@ Use the real name from `profile/main.name` in file names.
 **d. Can it be done here?** By `job.ats`:
 - `greenhouse`, `lever`, `ashby`, `smartrecruiters`, `recruitee`, `personio`, or an `other`
   page whose form needs no login → continue.
-- `workday`, `taleo`, `successfactors`, `icims`, LinkedIn, or `form-inspect` reports
+- `workday`, `taleo`, `successfactors`, `icims`, `oleeo` (`*.tal.net`), `cornerstone`
+  (`*.csod.com`), LinkedIn, or `form-inspect` reports
   `login: true` → `status: "manual"`, `apply.method: "manual"`, `blocker {kind: "login",
   action: "Needs an account on the firm's site. Run /job-apply-local on your laptop, or apply
   yourself — CV, letter and answers are ready on this card", link: applyUrl}`. Upload the PDFs
   for the owner (step h) and stop.
+
+What the first real run (Nov 2026) found from the cloud: Greenhouse showed an email
+security-code step after Submit and the code never reached Gmail; SmartRecruiters answered
+"Access is temporarily restricted". So: try each ATS at most once per run; if Greenhouse asks
+for a code and none arrives within 5 minutes, or SmartRecruiters blocks, make the job
+`manual` with the PDFs (step h) and don't try that ATS again in the same run. Never look for
+a way around the check.
 
 **e. Inspect.** `$JP form-inspect --url <applyUrl> --out D/fields.json --shot D/form.png`
 (Lever: `applyUrl` ends in `/apply`; Ashby: `/application`). Read `fields.json`: every field,
@@ -92,7 +100,9 @@ Where answers come from:
      "Wait for reply — follow up if nothing"`, `nextDate: today + 10 days`, history.
    - `captcha` → `blocked` as in g.2.
    - `login_required` → `manual` as in d.
-   - `needs_code` / `code_timeout` → `blocked {kind: "error", action: "Finish on the site: it asked for an email code"}`.
+   - `needs_code` / `code_timeout` → `manual {kind: "captcha", action: "The site asked for an
+     email code that never arrived, so it was not sent. Open the link, upload the two PDFs below
+     and use the answers on this card"}`. Search Gmail for a confirmation before any retry.
    - `error` / `unconfirmed` → look at `D/shots/after-submit.png` and `errors`. If clearly
      not submitted (validation errors), fix the plan and retry once now. If unsure, set
      `apply.result: "unconfirmed"` and back to `approved`; the next run checks Gmail before any retry.

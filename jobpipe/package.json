@@ -7,7 +7,7 @@
   "bin": { "jobpipe": "bin/jobpipe.mjs" },
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "selftest": "node bin/jobpipe.mjs selftest"
   },
   "optionalDependencies": {

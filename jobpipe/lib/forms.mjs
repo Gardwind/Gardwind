@@ -80,8 +80,18 @@ function collectFields() {
     }
     const f = { kind: el.tagName === 'SELECT' ? 'select' : type === 'file' ? 'file' : el.getAttribute('role') === 'combobox' || el.getAttribute('aria-autocomplete') ? 'combobox' : el.tagName === 'TEXTAREA' ? 'textarea' : 'text', type, selector: selectorFor(el), name: el.name || null, id: el.id || null, label, required };
     if (el.tagName === 'SELECT') f.options = [...el.options].map((o) => ({ label: clean(o.text), value: o.value })).filter((o) => o.label && o.value !== '');
-    if (type === 'file') { f.accept = el.accept || null; f.filled = el.files?.length > 0; }
-    else f.value = el.value || '';
+    if (type === 'file') {
+      f.accept = el.accept || null;
+      // Custom upload widgets keep the input empty and list the file name next to it.
+      const box = el.closest('.field-wrapper, [class*="field"], [class*="upload"], fieldset, li') || el.parentElement;
+      f.filled = el.files?.length > 0 || /\.(pdf|docx?|txt|rtf)\b/i.test(box?.innerText || '');
+    } else if (f.kind === 'combobox' && !el.value) {
+      // React-select style widgets show the chosen option outside the input.
+      const box = el.closest('[class*="value-container"], [class*="ValueContainer"]') || el.closest('[class*="__control"], [class*="-control"]') || el.parentElement?.parentElement;
+      const shown = box?.querySelector('[class*="single-value"], [class*="singleValue"], [class*="multi-value"], [class*="multiValue"]');
+      const hidden = el.closest('[class*="field"], [class*="select"], .field-wrapper')?.querySelector('input[type="hidden"]');
+      f.value = (shown && shown.textContent.trim()) || (hidden && hidden.value) || '';
+    } else f.value = el.value || '';
     if (el.maxLength > 0) f.maxLength = el.maxLength;
     fields.push(f);
   }
@@ -148,11 +158,49 @@ async function openForm(page, url, timeout) {
   return info;
 }
 
-export async function inspectForm(url, { screenshot, timeout = 45000 } = {}) {
+// Options of the listbox that belongs to a combobox (runs inside the page).
+function listboxOptions(sel) {
+  const el = document.querySelector(sel);
+  const shown = (n) => { const r = n.getBoundingClientRect(); return r.height > 0 && r.width > 0 && getComputedStyle(n).visibility !== 'hidden'; };
+  const id = el && (el.getAttribute('aria-controls') || el.getAttribute('aria-owns'));
+  let box = id ? document.getElementById(id) : null;
+  if (!box || !shown(box)) {
+    const boxes = [...document.querySelectorAll('[role="listbox"]')].filter(shown);
+    box = boxes.find((b) => el && (b.closest('.select, [class*="select"], [class*="field"]') === el.closest('.select, [class*="select"], [class*="field"]'))) || boxes[boxes.length - 1];
+  }
+  if (!box) return [];
+  return [...box.querySelectorAll('[role="option"]')].filter(shown).map((o) => o.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+
+// Open each dropdown-style combobox once and record its options (React-select
+// and similar widgets only render options while open).
+async function readComboOptions(page, info) {
+  for (const f of info.fields) {
+    if (f.kind !== 'combobox' || f.options) continue;
+    try {
+      const loc = page.locator(f.selector).first();
+      await loc.scrollIntoViewIfNeeded({ timeout: 3000 });
+      await loc.click({ timeout: 3000 });
+      await sleep(400);
+      const opts = await page.evaluate(listboxOptions, f.selector);
+      f.options = [...new Set(opts)].slice(0, 120).map((label) => ({ label }));
+      if (!f.options.length) f.options = null; // async search box (e.g. city): options appear only after typing
+      await page.keyboard.press('Escape');
+      await sleep(120);
+    } catch { /* leave options unknown */ }
+  }
+  return info;
+}
+
+export async function inspectForm(url, { screenshot, timeout = 45000, comboOptions = true } = {}) {
   const { browser, context } = await launchBrowser();
   try {
     const page = await context.newPage();
     const info = await openForm(page, url, timeout);
+    // Drop the hidden text inputs that shadow each combobox (same label, no id).
+    const labels = new Set(info.fields.filter((f) => f.kind === 'combobox').map((f) => f.label));
+    info.fields = info.fields.filter((f) => !(f.kind === 'text' && !f.id && !f.name && (labels.has(f.label) || !f.label)));
+    if (comboOptions) await readComboOptions(page, info);
     if (screenshot) await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
     return info;
   } finally {
@@ -192,12 +240,25 @@ async function fillOne(page, f, baseDir) {
       await loc.setInputFiles(path.resolve(baseDir, String(f.value)), { timeout: 8000 });
       break;
     case 'combobox': {
-      await loc.click({ timeout: 8000 });
-      await loc.fill(String(f.value)).catch(async () => { await page.keyboard.type(String(f.value), { delay: 20 }); });
-      await sleep(600);
-      const opt = page.getByRole('option', { name: new RegExp(escapeRegExp(String(f.optionText || f.value)), 'i') }).first();
-      if (await opt.count()) await opt.click({ timeout: 5000 });
-      else await page.keyboard.press('Enter');
+      const want = String(f.optionText || f.value);
+      let done = false;
+      for (let attempt = 1; attempt <= 3 && !done; attempt++) {
+        await page.keyboard.press('Escape').catch(() => {});
+        await loc.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+        await loc.click({ timeout: 8000, force: attempt > 1 });
+        await loc.fill('').catch(() => {});
+        await loc.fill(String(f.value)).catch(async () => { await page.keyboard.type(String(f.value), { delay: 30 }); });
+        await sleep((f.wait || 700) * attempt);
+        const boxId = await loc.getAttribute('aria-controls').catch(() => null);
+        const scope = boxId ? page.locator(`[id="${boxId}"]`) : page;
+        const exact = scope.getByRole('option', { name: want, exact: true }).first();
+        const loose = scope.getByRole('option', { name: new RegExp(escapeRegExp(want).replace(/'/g, "['’]"), 'i') }).first();
+        if (await exact.count()) { await exact.click({ timeout: 5000 }); done = true; }
+        else if (await loose.count()) { await loose.click({ timeout: 5000 }); done = true; }
+      }
+      if (!done) throw new Error(`No option matching "${want}"`);
+      await page.keyboard.press('Escape').catch(() => {});
+      await sleep(250);
       break;
     }
     default:
@@ -263,13 +324,20 @@ export async function fillForm(plan, { submit = false, shotsDir, codeFile, codeT
 
     if (!looksConfirmed(state) && info.codePrompt) {
       result.status = 'needs_code';
-      if (shotsDir) fs.writeFileSync(path.join(shotsDir, 'needs_code.json'), JSON.stringify({ at: new Date().toISOString(), url: page.url() }));
+      const promptField = info.fields.find((f) => f.selector === info.codePrompt);
+      if (shot('needs-code.png')) { await page.screenshot({ path: shot('needs-code.png'), fullPage: true }).catch(() => {}); result.screenshots.push(shot('needs-code.png')); }
+      if (shotsDir) fs.writeFileSync(path.join(shotsDir, 'needs_code.json'), JSON.stringify({ at: new Date().toISOString(), url: page.url(), prompt: promptField?.label || null, text: state.text.slice(0, 800) }));
       if (!codeFile) return result;
       const deadline = Date.now() + codeTimeout * 1000;
       while (Date.now() < deadline && !fs.existsSync(codeFile)) await sleep(3000);
       if (!fs.existsSync(codeFile)) { result.status = 'code_timeout'; return result; }
       const code = fs.readFileSync(codeFile, 'utf8').trim();
-      await page.locator(info.codePrompt).first().fill(code);
+      // Codes are often split over one box per character that auto-advance: type, don't fill.
+      const first = page.locator(info.codePrompt).first();
+      await first.click();
+      const maxLen = Number(await first.getAttribute('maxlength').catch(() => null)) || 0;
+      if (maxLen === 1) await page.keyboard.type(code, { delay: 80 });
+      else await first.fill(code);
       await clickSubmit().catch(() => page.keyboard.press('Enter'));
       await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
       await sleep(2000);

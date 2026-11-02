@@ -111,7 +111,9 @@ export function prefilter(jobs, targets = {}, { existing = [], now = new Date(),
     if (exc.some((k) => hit(t, k))) { drop('too_senior_or_excluded'); continue; }
     const titleHits = inc.filter((k) => hit(t, k));
     if (inc.length && !titleHits.length) { drop('title_mismatch'); continue; }
-    const genericOnly = titleHits.length > 0 && titleHits.every((k) => GENERIC_TITLE_WORDS.has(k));
+    // Programme postings ("2027 Analyst Programme", "Summer Internship") often have generic text; keep them for Claude to judge.
+    const programme = /\b(202[6-9]|programme|program|graduate|summer|spring|off cycle|internship|insight)\b/.test(t);
+    const genericOnly = titleHits.length > 0 && titleHits.every((k) => GENERIC_TITLE_WORDS.has(k)) && !programme;
     if (genericOnly && (j.description || '').length > 200 && domainHits(j.description, keywords).length < 2) { drop('generic_title_off_field'); continue; }
 
     const l = norm(j.location);
@@ -120,7 +122,9 @@ export function prefilter(jobs, targets = {}, { existing = [], now = new Date(),
     if (j.location && !locMatch) { drop('location_mismatch'); continue; }
 
     const age = daysAgo(j.postedAt, now);
-    if (age !== null && age > maxAge) { drop('too_old'); continue; }
+    // Campus and programme postings stay open for months.
+    const longLived = /\b(202[6-9]|graduates?|programme|program|intern|internship|summer|off cycle|stage)\b/.test(t);
+    if (age !== null && age > (longLived ? Math.max(maxAge, 150) : maxAge)) { drop('too_old'); continue; }
 
     // 0-100 ranking score. Only used to decide what Claude reads first.
     const titleScore = Math.min(40, titleHits.reduce((s, k) => s + 8 * Math.min(3, k.split(' ').length), 0) + (titleHits.length ? 8 : 0));

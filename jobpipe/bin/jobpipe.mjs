@@ -79,7 +79,8 @@ async function main() {
       for (const j of [...top, ...rest]) {
         const ageDays = daysAgo(j.postedAt) ?? j.ageDays ?? null;
         const hits = domainHits(j.description, keywords);
-        if (ageDays !== null && ageDays > maxAge) { dropped.too_old = (dropped.too_old || 0) + 1; continue; }
+        const longLived = /\b(202[6-9]|graduates?|programme|program|intern|internship|summer|off.?cycle|stage)\b/i.test(j.title);
+        if (ageDays !== null && ageDays > (longLived ? Math.max(maxAge, 150) : maxAge)) { dropped.too_old = (dropped.too_old || 0) + 1; continue; }
         if (j.pre?.genericOnly && (j.description || '').length > 200 && hits.length < 2) { dropped.generic_title_off_field = (dropped.generic_title_off_field || 0) + 1; continue; }
         afterDetails.push({ ...j, ageDays, pre: { ...j.pre, keywordHits: hits.slice(0, 12), score: j.pre.score + (j.pre.keywordHits?.length ? 0 : Math.min(20, hits.length * 4)) } });
       }

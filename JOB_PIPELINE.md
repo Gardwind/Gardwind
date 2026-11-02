@@ -42,6 +42,10 @@ tasks start from scratch don't get connectors). It refreshes this repo, then fol
    reads the email verification code from Gmail if the site sends one.
    Sites that need an account (Workday, LinkedIn…) become **Apply by hand** with everything
    prepared, or are finished from a laptop with `/job-apply-local`.
+   In the first real run (Nov 2026) most firms' sites needed an account or stopped the cloud
+   browser (Greenhouse's email security code never arrived; SmartRecruiters blocked access),
+   so expect most applications to arrive as **Apply by hand** cards: tailored CV PDF, letter
+   PDF, answers and the link, about 3–10 minutes each from a phone or laptop.
 3. **Find** — checks the careers boards of the watched firms (Greenhouse, Lever, Ashby, Workday,
    SmartRecruiters, Recruitee, Personio), finds new firms' boards by probing those systems
    (`jobpipe probe`, `probe-workday`) and by web search, and checks sample postings before
