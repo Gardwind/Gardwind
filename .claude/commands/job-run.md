@@ -129,6 +129,16 @@ already ≥ `settings.readyCap` — the owner has enough to look at.
      sites); if nothing at all, `"none"`.
    - 2–4 searches for open roles, e.g. `site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com "<role>" "<city>"`
      and `site:myworkdayjobs.com "<role>" "<city>"`. New boards → `watchlist`.
+   - 1–2 searches aimed at forms Claude can actually send: `site:teamtailor.com`,
+     `site:apply.workable.com`, `site:recruitee.com`, `site:jobs.personio.com` with the role
+     words in English and French ("stage", "M&A", "private equity", "restructuring") and the
+     target cities and start months. A Teamtailor form was submitted from the cloud on 3 Nov
+     (Indefi); Workable answered "too many requests" that day, so try it once and move on.
+   - Hiring posts on LinkedIn ("my team is hiring"): never log in to or scrape LinkedIn.
+     Web search rarely indexes these posts; use the owner's LinkedIn alert emails (step 2) and
+     find the same role on the firm's own careers site.
+   - Jobs with `status: "found"` already on the board (leads a person or earlier run saved)
+     are candidates too: read the posting, then score and tailor them like the others.
    - Save `sources/main` (update with its version).
 4. Drop candidates that are scam `high` (already dropped by fetch), stale talent-pool
    listings, roles needing a language at a level the owner lacks (note the count), and
