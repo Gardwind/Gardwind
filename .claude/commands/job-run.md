@@ -158,7 +158,11 @@ scored jobs, best first:
    no new tools or skills. Optional one-line `summary` (`{text, src}`), facts only.
    Run `$JP cv --resume $W/t-<id>.json --master $W/master.json --out $W/cv-<id>.pdf`.
    Must show `truth.ok: true`, `ats.ok: true`, `pdf.pages: 1`. Fix and rerun until it does
-   (cut weaker bullets to fit one page).
+   (cut weaker bullets to fit one page). Keep `meta` (font, titles, order) from the master.
+   **Graduation year:** follow `profile/main.savedAnswers.graduation`. Where the role is an
+   internship for penultimate-year students (graduating the year after the internship), use the
+   education entry's alternate (`alternates.when` / `alternates.end`); otherwise keep the master's
+   dates. Use the same year in every form answer for that job.
 2. **Cover letter** (only if the posting or form asks, or it's a small firm / fund):
    `{salutation, paragraphs: [3 short paragraphs], closing}`, ≤ 220 words: why this firm (one
    specific fact from the posting or their site), why you (two matched experiences), close.
@@ -196,7 +200,9 @@ Act on clear patterns: skipped ≥ 3 times for the same reason → add to
 
 ## 9. Digest and wrap-up
 
-1. Write `digests/<today>` (set): `headline` (one sentence, e.g. "3 new jobs to approve, 2
+1. Write `digests/<today>`. If it already exists (an earlier run or a "Run now" today), merge
+   into it: keep its `needsYou` items that are still true, append to `done`, `replies` and `errors`.
+   Otherwise create it: `headline` (one sentence, e.g. "3 new jobs to approve, 2
    applications sent, interview invite from X"), `needsYou` (max 5, most urgent first, each
    saying exactly what to tap or do), `done`, `replies`, `upcoming` (next 7 days), `stats`
    (`appliedWeek`, `replyRate`, `ready`, `interviews`), `errors` (plain sentences).

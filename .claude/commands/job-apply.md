@@ -60,7 +60,8 @@ Where answers come from:
 - Name, email (`profile/main.email` — the inbox Claude can read), phone, location, links → `profile/main`.
 - CV / cover letter uploads → the PDFs from step c. A cover-letter text box → the letter text.
 - Right to work, sponsorship, relocation, notice period, start date, salary, "how did you
-  hear" → `profile/main.workAuth`, `targets.startDate`, `savedAnswers`. Salary only from
+  hear" → `profile/main.workAuth`, `savedAnswers.sponsorship`, `targets.startDate`, `savedAnswers`.
+- Expected graduation date → `savedAnswers.graduation` (the same year the tailored CV shows). Salary only from
   `savedAnswers.salaryExpectation`; if a required salary field has no saved answer, ask.
 - Diversity / EEO questions → `savedAnswers` if set, otherwise the option meaning "Prefer
   not to say" / "Decline to self-identify".

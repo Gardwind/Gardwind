@@ -69,7 +69,8 @@ saved = added by hand on the board, not yet processed (the next run scores and t
     "maxAgeDays": 45, "dealBreakers": []
   },
   "savedAnswers": {"gender": "", "ethnicity": "", "disability": "", "veteran": "", "salaryExpectation": "",
-                   "noticePeriod": "", "relocation": "", "sponsorship": {}, "howHeard": "", "pronouns": ""},
+                   "noticePeriod": "", "relocation": "", "sponsorship": {"United Kingdom": "No"}, "howHeard": "",
+                   "pronouns": "", "graduation": "rule for 'expected graduation date' questions"},
   "facts": ["confirmed free-text facts usable in letters and answers"],
   "confirmed": {"contact": false, "targets": false, "cv": false},
   "updatedAt": ""
@@ -95,8 +96,17 @@ point back at them with `src`, which is how the truth check works.
 }
 ```
 
-A **tailored** CV keeps the same entries (`id`, organisation, title, dates and place unchanged),
-may drop or reorder entries and bullets, and rewrites bullets as `{text, src: [master bullet ids]}`.
+Optional fields:
+- `when` — the date text exactly as the owner writes it (`"July 2026 (2 months)"`); shown instead of `start`–`end`.
+- `sub` on a bullet — sub-bullets, each `{id, text}` (e.g. a project heading with three points under it).
+- `alternates` on an entry — other values the owner approved for a fixed field, e.g.
+  `{"when": ["2025-2028"], "end": ["2028"]}` when the graduation year is the owner's choice.
+- `meta.titles` — section headings (`{"work": "Work Experience", "activities": "Additional Experience"}`);
+  `meta.font` — `times` | `charter` | `calibri` | `garamond`.
+
+A **tailored** CV keeps the same entries (`id`, organisation, title, dates and place unchanged,
+or one of the entry's `alternates`), may drop or reorder entries and bullets, and rewrites bullets
+as `{text, src: [master bullet ids]}` (sub-bullets the same way, inside `sub`).
 
 ## `profile/stories`
 

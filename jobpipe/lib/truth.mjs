@@ -5,10 +5,26 @@ import { norm } from './util.mjs';
 import { LIST_KEY, allHighlights, skillsList } from './resume.mjs';
 
 const FIXED_FIELDS = {
-  education: ['institution', 'degree', 'location', 'start', 'end', 'grade'],
-  work: ['organization', 'position', 'location', 'start', 'end'],
-  activities: ['organization', 'role', 'location', 'start', 'end'],
+  education: ['institution', 'degree', 'location', 'start', 'end', 'when', 'grade'],
+  work: ['organization', 'position', 'location', 'start', 'end', 'when'],
+  activities: ['organization', 'role', 'location', 'start', 'end', 'when'],
 };
+
+// A fixed field may also take a value the owner approved in the master entry's
+// `alternates` (e.g. {when: ["2025-2028"]} for a graduation date they can choose).
+function allowed(master, field, value) {
+  if (norm(value) === norm(master[field] ?? '')) return true;
+  return [].concat(master.alternates?.[field] || []).some((a) => norm(a) === norm(value));
+}
+
+function flatItems(list) {
+  const out = [];
+  for (const h of list || []) {
+    out.push(h);
+    if (h && typeof h === 'object') for (const s of h.sub || []) out.push(s);
+  }
+  return out;
+}
 
 const STOP = new Set('the and for with from into that this were was are have has had their within across over under onto upon such than then them they your our its using used use via per also both each more most less into while where which who whom what when been being able ability'.split(' '));
 
@@ -80,13 +96,13 @@ export function truthCheck(master, tailored) {
         continue;
       }
       for (const f of fields) {
-        if (e[f] !== undefined && e[f] !== null && norm(e[f]) !== norm(m[f] ?? '')) {
+        if (e[f] !== undefined && e[f] !== null && !allowed(m, f, e[f])) {
           errors.push({ type: 'changed_field', section: sec, id: e.id, field: f, master: m[f] ?? '', tailored: e[f] });
         }
       }
       const key = LIST_KEY[sec];
-      const items = new Map((m[key] || []).map((h) => [h.id, h]));
-      for (const h of e[key] || []) {
+      const items = new Map(flatItems(m[key]).filter((h) => h && h.id).map((h) => [h.id, h]));
+      for (const h of flatItems(e[key])) {
         const text = typeof h === 'string' ? h : h.text;
         const src = [].concat(typeof h === 'string' ? [] : h.src || (h.id ? [h.id] : []));
         if (!src.length) {

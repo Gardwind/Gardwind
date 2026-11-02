@@ -31,25 +31,49 @@ export function fmtRange(start, end) {
 
 export const LIST_KEY = { education: 'details', work: 'highlights', activities: 'highlights' };
 
+// Every bullet, including sub-bullets (`sub`), flattened.
 export function allHighlights(r) {
   const out = [];
   for (const [sec, key] of Object.entries(LIST_KEY)) {
     for (const e of r?.[sec] || []) {
-      for (const h of e[key] || []) out.push({ section: sec, entryId: e.id, ...(typeof h === 'string' ? { text: h } : h) });
+      for (const h of e[key] || []) {
+        const obj = typeof h === 'string' ? { text: h } : h;
+        out.push({ section: sec, entryId: e.id, ...obj });
+        for (const s of obj.sub || []) out.push({ section: sec, entryId: e.id, parentId: obj.id, ...(typeof s === 'string' ? { text: s } : s) });
+      }
     }
   }
   return out;
 }
 
+// Date text as the owner writes it ("July 2026 (2 months)"), else built from start/end.
+export const entryWhen = (e) => e.when || fmtRange(e.start, e.end);
+
 export function skillsList(r) {
   return (r?.skills || []).flatMap((s) => s.items || []);
 }
 
+// meta.font picks the CV typeface; each stack has fallbacks that exist on Linux.
+const FONTS = {
+  charter: "'Charter', 'Bitstream Charter', 'Caladea', 'Cambria', 'Georgia', 'Times New Roman', serif",
+  times: "'Times New Roman', 'Liberation Serif', 'Tinos', 'Nimbus Roman', Times, serif",
+  calibri: "'Calibri', 'Carlito', 'Segoe UI', Arial, sans-serif",
+  garamond: "'EB Garamond', 'Garamond', 'Cormorant Garamond', 'Georgia', serif",
+};
+
 const SECTION_TITLES = { education: 'Education', work: 'Experience', activities: 'Leadership & Activities', skills: 'Skills & Interests' };
 
+function bulletItem(h) {
+  const text = typeof h === 'string' ? h : h.text || '';
+  const sub = typeof h === 'object' && h.sub?.length
+    ? `<ul class="subl">${h.sub.map((x) => `<li>${escapeHtml(typeof x === 'string' ? x : x.text)}</li>`).join('')}</ul>`
+    : '';
+  return `<li>${escapeHtml(text)}${sub}</li>`;
+}
+
 function bullets(list) {
-  const items = (list || []).map((h) => (typeof h === 'string' ? h : h.text)).filter(Boolean);
-  return items.length ? `<ul>${items.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>` : '';
+  const items = (list || []).filter((h) => (typeof h === 'string' ? h : h.text || h.sub?.length));
+  return items.length ? `<ul>${items.map(bulletItem).join('')}</ul>` : '';
 }
 
 function entry(head, where, sub, when, list) {
@@ -67,26 +91,27 @@ export function resumeHTML(r, { fontPt = 10.5 } = {}) {
     .map(escapeHtml)
     .join(' &nbsp;|&nbsp; ');
   const order = r.meta?.order || ['education', 'work', 'activities', 'skills'];
+  const title = (sec) => escapeHtml(r.meta?.titles?.[sec] || SECTION_TITLES[sec]);
   const parts = [];
   if (r.summary?.text) parts.push(`<p class="summary">${escapeHtml(r.summary.text)}</p>`);
   for (const sec of order) {
     if (sec === 'education' && r.education?.length) {
-      parts.push(`<h2>${SECTION_TITLES.education}</h2>` + r.education.map((e) => entry(e.institution, e.location, [e.degree, e.grade].filter(Boolean).join(' – '), fmtRange(e.start, e.end), e.details)).join(''));
+      parts.push(`<h2>${title('education')}</h2>` + r.education.map((e) => entry(e.institution, e.location, [e.degree, e.grade].filter(Boolean).join(' – '), entryWhen(e), e.details)).join(''));
     } else if (sec === 'work' && r.work?.length) {
-      parts.push(`<h2>${SECTION_TITLES.work}</h2>` + r.work.map((e) => entry(e.organization, e.location, e.position, fmtRange(e.start, e.end), e.highlights)).join(''));
+      parts.push(`<h2>${title('work')}</h2>` + r.work.map((e) => entry(e.organization, e.location, e.position, entryWhen(e), e.highlights)).join(''));
     } else if (sec === 'activities' && r.activities?.length) {
-      parts.push(`<h2>${SECTION_TITLES.activities}</h2>` + r.activities.map((e) => entry(e.organization, e.location, e.role, fmtRange(e.start, e.end), e.highlights)).join(''));
+      parts.push(`<h2>${title('activities')}</h2>` + r.activities.map((e) => entry(e.organization, e.location, e.role, entryWhen(e), e.highlights)).join(''));
     } else if (sec === 'skills' && (r.skills?.length || r.interests?.length)) {
       const rows = (r.skills || []).filter((s) => s.items?.length).map((s) => `<p><b>${escapeHtml(s.category)}:</b> ${escapeHtml(s.items.join(', '))}</p>`);
       if (r.interests?.length) rows.push(`<p><b>Interests:</b> ${escapeHtml(r.interests.join(', '))}</p>`);
-      parts.push(`<h2>${SECTION_TITLES.skills}</h2><div class="skills">${rows.join('')}</div>`);
+      parts.push(`<h2>${title('skills')}</h2><div class="skills">${rows.join('')}</div>`);
     }
   }
   const fs1 = fontPt;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(b.name || 'CV')}</title><style>
 @page { size: A4; margin: 11mm 13mm; }
 * { box-sizing: border-box; }
-body { margin: 0; color: #111; font-family: 'Charter', 'Bitstream Charter', 'Caladea', 'Cambria', 'Georgia', 'Times New Roman', serif;
+body { margin: 0; color: #111; font-family: ${FONTS[r.meta?.font] || FONTS.charter};
   font-size: ${fs1}pt; line-height: 1.24; font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0; }
 h1 { font-size: ${(fs1 * 1.75).toFixed(1)}pt; margin: 0 0 2pt; text-align: center; letter-spacing: .4pt; }
 .contact { text-align: center; font-size: ${(fs1 * 0.93).toFixed(1)}pt; margin: 0 0 5pt; }
@@ -98,6 +123,7 @@ h2 { font-size: ${(fs1 * 1.02).toFixed(1)}pt; text-transform: uppercase; letter-
 .sub { font-style: italic; }
 .right { white-space: nowrap; text-align: right; }
 ul { margin: 1pt 0 0; padding-left: 13pt; }
+ul.subl { margin: 0; padding-left: 14pt; list-style-type: "- "; }
 li { margin: 0 0 1pt; }
 .skills p { margin: 0 0 1.5pt; }
 </style></head><body>

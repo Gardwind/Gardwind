@@ -109,6 +109,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mu
 .paper .cv-row{display:flex;justify-content:space-between;gap:10px}
 .paper .cv-row span{white-space:nowrap;text-align:right}
 .paper ul{margin:2px 0 0;padding-left:16px}.paper li{margin-bottom:1px}
+.paper ul.subl{margin:0;padding-left:16px;list-style-type:"- "}
 .paper p{margin:0 0 2px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
 .kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
@@ -267,18 +268,21 @@ function cvHTML(r) {
   if (!r || !r.basics) return '<p class="empty">No CV on the board yet.</p>';
   const b = r.basics;
   const contact = [b.location, b.phone, b.email, ...(b.links || []).map((l) => l.label || l.url), b.nationality ? `Nationality: ${b.nationality}` : ''].filter(Boolean).map(esc).join(' | ');
-  const list = (items) => ((items || []).length ? `<ul>${items.map((h) => `<li>${esc(typeof h === 'string' ? h : h.text)}</li>`).join('')}</ul>` : '');
+  const sub = (h) => (h && typeof h === 'object' && h.sub?.length ? `<ul class="subl">${h.sub.map((x) => `<li>${esc(typeof x === 'string' ? x : x.text)}</li>`).join('')}</ul>` : '');
+  const list = (items) => ((items || []).length ? `<ul>${items.map((h) => `<li>${esc(typeof h === 'string' ? h : h.text)}${sub(h)}</li>`).join('')}</ul>` : '');
+  const when = (e) => e.when || fmtRange(e.start, e.end);
+  const title = (sec, d) => esc(r.meta?.titles?.[sec] || d);
   const ent = (head, where, sub, when, items) => `<div class="cv-entry"><div class="cv-row"><b>${esc(head)}</b><span>${esc(where || '')}</span></div>${sub || when ? `<div class="cv-row"><i>${esc(sub || '')}</i><span>${esc(when || '')}</span></div>` : ''}${list(items)}</div>`;
   const parts = [];
   if (r.summary?.text) parts.push(`<p class="cv-sum">${esc(r.summary.text)}</p>`);
   for (const sec of r.meta?.order || ['education', 'work', 'activities', 'skills']) {
-    if (sec === 'education' && r.education?.length) parts.push('<h4>Education</h4>' + r.education.map((e) => ent(e.institution, e.location, [e.degree, e.grade].filter(Boolean).join(' – '), fmtRange(e.start, e.end), e.details)).join(''));
-    if (sec === 'work' && r.work?.length) parts.push('<h4>Experience</h4>' + r.work.map((e) => ent(e.organization, e.location, e.position, fmtRange(e.start, e.end), e.highlights)).join(''));
-    if (sec === 'activities' && r.activities?.length) parts.push('<h4>Leadership &amp; Activities</h4>' + r.activities.map((e) => ent(e.organization, e.location, e.role, fmtRange(e.start, e.end), e.highlights)).join(''));
+    if (sec === 'education' && r.education?.length) parts.push(`<h4>${title('education', 'Education')}</h4>` + r.education.map((e) => ent(e.institution, e.location, [e.degree, e.grade].filter(Boolean).join(' – '), when(e), e.details)).join(''));
+    if (sec === 'work' && r.work?.length) parts.push(`<h4>${title('work', 'Experience')}</h4>` + r.work.map((e) => ent(e.organization, e.location, e.position, when(e), e.highlights)).join(''));
+    if (sec === 'activities' && r.activities?.length) parts.push(`<h4>${title('activities', 'Leadership & Activities')}</h4>` + r.activities.map((e) => ent(e.organization, e.location, e.role, when(e), e.highlights)).join(''));
     if (sec === 'skills' && (r.skills?.length || r.interests?.length)) {
       const rows = (r.skills || []).filter((s) => s.items?.length).map((s) => `<p><b>${esc(s.category)}:</b> ${esc(s.items.join(', '))}</p>`);
       if (r.interests?.length) rows.push(`<p><b>Interests:</b> ${esc(r.interests.join(', '))}</p>`);
-      parts.push('<h4>Skills &amp; Interests</h4>' + rows.join(''));
+      parts.push(`<h4>${title('skills', 'Skills & Interests')}</h4>` + rows.join(''));
     }
   }
   return `<div class="paper-wrap"><div class="paper"><div class="cv-name">${esc(b.name)}</div><div class="cv-contact">${contact}</div>${parts.join('')}</div></div>`;
