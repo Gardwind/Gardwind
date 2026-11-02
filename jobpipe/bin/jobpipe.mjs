@@ -23,6 +23,8 @@ const HELP = `jobpipe <command> [options]
                [--limit 40] [--enrich 30]
   job          --url <posting url> [--out job.json]          one posting from any careers URL
   board        --url <careers url>                           URL -> watchlist entry
+  probe        (--firms "A;B" | --sources sources.json) [--out found.json]   find firms' ATS boards by trying likely slugs
+  probe-workday --tenants "kkr,hl" [--sites "A,B"] [--out found.json]          find Workday hosts + site names
   stage        --candidates candidates.json --ids a,b,c --out-dir dir   base job documents for the board
   batch        --dir dir --collection jobs --out batch.json  ArtifactData batch writes (50 per chunk)
   cv           --resume tailored.json --out cv.pdf [--master master.json] [--html cv.html] [--max-pages 1]
@@ -55,7 +57,8 @@ async function main() {
   switch (cmd) {
     case 'fetch': {
       const { fetchAll, enrich } = await import('../lib/sources.mjs');
-      const { prefilter, languageGaps } = await import('../lib/filter.mjs');
+      const { prefilter, languageGaps, domainHits } = await import('../lib/filter.mjs');
+      const { daysAgo } = await import('../lib/util.mjs');
       const { scamCheck, staleCheck } = await import('../lib/scam.mjs');
       const src = readJSON(need('watchlist'));
       const profile = readJSON(need('profile'));
@@ -71,7 +74,17 @@ async function main() {
       const top = await mapLimit(kept.slice(0, enrichN), 4, (j) => enrich(j));
       const rest = kept.slice(enrichN);
       const limit = Number(args.limit ?? 40);
-      const checked = [...top, ...rest].slice(0, limit).map((j) => {
+      const maxAge = targets.maxAgeDays ?? 45;
+      const afterDetails = [];
+      for (const j of [...top, ...rest]) {
+        const ageDays = daysAgo(j.postedAt) ?? j.ageDays ?? null;
+        const hits = domainHits(j.description, keywords);
+        if (ageDays !== null && ageDays > maxAge) { dropped.too_old = (dropped.too_old || 0) + 1; continue; }
+        if (j.pre?.genericOnly && (j.description || '').length > 200 && hits.length < 2) { dropped.generic_title_off_field = (dropped.generic_title_off_field || 0) + 1; continue; }
+        afterDetails.push({ ...j, ageDays, pre: { ...j.pre, keywordHits: hits.slice(0, 12), score: j.pre.score + (j.pre.keywordHits?.length ? 0 : Math.min(20, hits.length * 4)) } });
+      }
+      afterDetails.sort((a, b) => b.pre.score - a.pre.score);
+      const checked = afterDetails.slice(0, limit).map((j) => {
         const langGap = languageGaps(j.description, profile.languages || targets.languages || []);
         const scam = scamCheck(j);
         const stale = staleCheck(j, j.ageDays);
@@ -98,6 +111,26 @@ async function main() {
     case 'board': {
       const { parseBoardUrl } = await import('../lib/sources.mjs');
       out(parseBoardUrl(need('url')) || { error: 'Not a known job board URL (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Recruitee, Personio).' });
+      break;
+    }
+    case 'probe': {
+      const { probeFirm } = await import('../lib/sources.mjs');
+      let firms;
+      if (args.firms) firms = String(args.firms).split(';').map((x) => x.trim()).filter(Boolean).map((name) => ({ name }));
+      else firms = (readJSON(need('sources')).targetFirms || []).filter((f) => f.status === 'unresolved' || args.all);
+      const results = await mapLimit(firms, 3, (f) => probeFirm(f.name, f.slugs || []));
+      const summary = results.map((r) => ({ firm: r.firm, match: r.found.filter((x) => x.match), other: r.found.filter((x) => !x.match).slice(0, 3) }));
+      if (args.out) writeJSON(args.out, summary);
+      out(summary);
+      break;
+    }
+    case 'probe-workday': {
+      const { probeWorkday } = await import('../lib/sources.mjs');
+      const tenants = String(need('tenants')).split(',').map((x) => x.trim()).filter(Boolean);
+      const sites = args.sites ? String(args.sites).split(',').map((x) => x.trim()) : [];
+      const results = await mapLimit(tenants, 3, (t) => probeWorkday(t, { sites }));
+      if (args.out) writeJSON(args.out, results);
+      out(results);
       break;
     }
     case 'stage': {

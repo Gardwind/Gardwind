@@ -37,6 +37,7 @@ Writing rules for Claude:
 | `decision` | `{by: "you"\|"auto", at, skipReason?}` — written by the board when the user taps Approve/Skip |
 | `contact` | `{name, email, role}` (older documents may hold a string) |
 | `appliedOn`, `nextStep`, `nextDate`, `notes` | tracking |
+| `deadline` | closing date from the posting (`YYYY-MM-DD`), shown on the card |
 | `prep` | interview prep: `{summary, likelyQuestions: [], storiesToUse: [], askThem: [], logistics}` |
 | `emails` | last 10 related emails: `[{at, from, subject, kind}]` |
 | `history`, `createdAt`, `updatedAt` | audit trail |

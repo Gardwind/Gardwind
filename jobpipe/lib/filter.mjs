@@ -72,6 +72,17 @@ export function languageGaps(description, profileLanguages = []) {
   return [...gaps];
 }
 
+// Title words that say nothing about the field on their own ("Analyst", "Intern").
+export const GENERIC_TITLE_WORDS = new Set(['analyst', 'analysts', 'associate', 'associates', 'intern', 'interns', 'internship', 'internships',
+  'graduate', 'graduates', 'summer', 'spring', 'winter', 'off cycle', 'consultant', 'summer analyst', 'summer associate', 'graduate programme',
+  'graduate program', 'analyst programme', 'analyst program', 'penultimate', 'trainee', 'junior']);
+
+// Domain keywords found in a description (used when the title is generic).
+export function domainHits(description, keywords) {
+  const d = ` ${norm(description).slice(0, 15000)} `;
+  return keywords.map(norm).filter((k) => k.length > 2 && d.includes(` ${k} `));
+}
+
 function hit(textN, phraseN) {
   return phraseN && ` ${textN} `.includes(` ${phraseN} `);
 }
@@ -100,6 +111,8 @@ export function prefilter(jobs, targets = {}, { existing = [], now = new Date(),
     if (exc.some((k) => hit(t, k))) { drop('too_senior_or_excluded'); continue; }
     const titleHits = inc.filter((k) => hit(t, k));
     if (inc.length && !titleHits.length) { drop('title_mismatch'); continue; }
+    const genericOnly = titleHits.length > 0 && titleHits.every((k) => GENERIC_TITLE_WORDS.has(k));
+    if (genericOnly && (j.description || '').length > 200 && domainHits(j.description, keywords).length < 2) { drop('generic_title_off_field'); continue; }
 
     const l = norm(j.location);
     const isRemote = j.remote === true || hit(l, 'remote');
@@ -119,7 +132,7 @@ export function prefilter(jobs, targets = {}, { existing = [], now = new Date(),
     const langGap = languageGaps(j.description, targets.languages || []);
     const score = Math.max(0, titleScore + locScore + ageScore + descScore - langGap.length * 15);
 
-    kept.push({ ...j, fingerprint: fp, ageDays: age, pre: { score, titleHits, keywordHits: kwHits.slice(0, 12), languageGaps: langGap, remote: isRemote } });
+    kept.push({ ...j, fingerprint: fp, ageDays: age, pre: { score, titleHits, genericOnly, keywordHits: kwHits.slice(0, 12), languageGaps: langGap, remote: isRemote } });
   }
   kept.sort((a, b) => b.pre.score - a.pre.score);
   return { kept, dropped };

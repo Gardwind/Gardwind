@@ -341,6 +341,7 @@ function details(j) {
 function flagChips(j) {
   const f = j.flags || {};
   const out = [];
+  if (j.deadline) { const left = Math.ceil((Date.parse(j.deadline + 'T23:59:00Z') - Date.now()) / 864e5); out.push(`<span class="chip ${left <= 14 ? 'bad' : 'warn'} mono">closes ${esc(fmtDay(j.deadline))}${left >= 0 && left <= 14 ? ` · ${left}d left` : ''}</span>`); }
   for (const g of j.fit?.gaps || []) out.push(`<span class="chip warn">${esc(g)}</span>`);
   for (const l of f.languageGaps || []) out.push(`<span class="chip warn">Needs ${esc(l)}</span>`);
   if (f.scam?.risk === 'medium') out.push(`<span class="chip bad" title="${esc((f.scam.reasons || []).join('; '))}">Check this employer</span>`);

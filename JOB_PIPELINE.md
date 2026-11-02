@@ -31,8 +31,9 @@ on the private board or in temporary folders.
 
 ## The daily run
 
-A scheduled task starts a fresh Claude Code cloud session every morning with Gmail and Google
-Calendar connected. It follows `job-run.md`:
+A scheduled task wakes a dedicated **runner** Claude Code session every morning. It is a normal
+session, so it has the account's Gmail and Google Calendar connectors (sessions that scheduled
+tasks start from scratch don't get connectors). It refreshes this repo, then follows `job-run.md`:
 
 1. **Inbox** — reads replies; marks rejections, interview invites, online tests and offers;
    drafts (never sends) replies; builds interview prep; picks up job-alert emails.
@@ -42,7 +43,9 @@ Calendar connected. It follows `job-run.md`:
    Sites that need an account (Workday, LinkedIn…) become **Apply by hand** with everything
    prepared, or are finished from a laptop with `/job-apply-local`.
 3. **Find** — checks the careers boards of the watched firms (Greenhouse, Lever, Ashby, Workday,
-   SmartRecruiters, Recruitee, Personio) and finds new firms' boards by web search. Drops
+   SmartRecruiters, Recruitee, Personio), finds new firms' boards by probing those systems
+   (`jobpipe probe`, `probe-workday`) and by web search, and checks sample postings before
+   adding a board. Drops
    duplicates, senior roles, wrong cities, old postings, scams and roles needing a language the
    owner lacks.
 4. **Score** each new job 0–100 with a one-line reason.

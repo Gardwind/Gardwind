@@ -149,3 +149,27 @@ test('stats', () => {
 test('norm strips accents and punctuation', () => {
   assert.equal(norm('Zürich – Genève & Bâle'), 'zurich geneve and bale');
 });
+
+test('generic-only titles need field words in the description', async () => {
+  const { prefilter, GENERIC_TITLE_WORDS } = await import('../lib/filter.mjs');
+  const t = { titleKeywords: ['analyst', 'restructuring'], locations: ['London'] };
+  const jobs = [
+    { key: '1', company: 'A', title: 'Desktop Support Analyst', location: 'London', description: 'Support laptops and printers for staff across the London office. Install software, fix hardware and manage tickets for the whole team every day. You will also onboard new joiners and keep the asset register current.' },
+    { key: '2', company: 'B', title: 'Analyst', location: 'London', description: 'Join our restructuring team advising creditors of distressed companies on liquidity and debt. You will build cash flow models and support live mandates.' },
+    { key: '3', company: 'C', title: 'Restructuring Analyst', location: 'London', description: 'x'.repeat(300) },
+    { key: '4', company: 'D', title: 'Analyst', location: 'London', description: '' },
+  ];
+  const { kept, dropped } = prefilter(jobs, t, { keywords: ['restructuring', 'distressed', 'creditors', 'debt'] });
+  assert.deepEqual(kept.map((j) => j.key).sort(), ['2', '3', '4']);
+  assert.equal(dropped.generic_title_off_field, 1);
+  assert.equal(kept.find((j) => j.key === '4').pre.genericOnly, true);
+  assert.ok(GENERIC_TITLE_WORDS.has('analyst'));
+});
+
+test('cleanOrg strips entity codes and legal suffixes', async () => {
+  const { cleanOrg } = await import('../lib/sources.mjs');
+  assert.equal(cleanOrg('66000 Blackstone Alternative Asset Management LP'), 'Blackstone Alternative Asset Management');
+  assert.equal(cleanOrg('Big Bank plc'), 'Big Bank');
+  assert.equal(cleanOrg('GB043 Oliver Wyman (UK)'), 'Oliver Wyman (UK)');
+  assert.equal(cleanOrg(''), '');
+});

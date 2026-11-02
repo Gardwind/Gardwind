@@ -142,7 +142,8 @@ test('workday: search POST, relative dates, detail enrichment', async () => {
   assert.equal(JSON.parse(post.body).searchText, 'restructuring');
   assert.ok(jobs[0].postedAt);
   const e = await enrich(jobs[0]);
-  assert.equal(e.company, 'Big Bank plc');
+  assert.equal(e.company, 'Big Bank');
+  assert.equal(e.entity, 'Big Bank plc');
   assert.match(e.description, /distressed companies/);
   assert.equal(e.postedAt, new Date('2026-10-30').toISOString());
 });

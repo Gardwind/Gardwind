@@ -2,10 +2,16 @@
 // open job aggregators, and a generic fallback that reads schema.org
 // JobPosting data from any careers page. Every fetcher returns jobs in one
 // normalized shape (see `job()` below).
-import { getJSON, getText } from './http.mjs';
+import { getJSON, getText, request, HttpError } from './http.mjs';
 import { htmlToText, decodeEntities, clip, hash, relativePostedToISO, mapLimit } from './util.mjs';
 
 const DESC_MAX = 12000;
+
+// "66000 Blackstone Alternative Asset Management LP" -> "Blackstone Alternative Asset Management"
+export function cleanOrg(name) {
+  if (!name) return '';
+  return String(name).replace(/^\s*[A-Z]{0,4}\d{2,}\s+/, '').replace(/[,\s]+(LP|LLP|LLC|L\.L\.C\.|Ltd\.?|Limited|Inc\.?|plc|S\.?A\.?S?|GmbH|AG|SE)\s*$/i, '').trim();
+}
 
 export function job(o) {
   return {
@@ -328,7 +334,8 @@ export async function enrich(j) {
       const info = d.jobPostingInfo || {};
       return {
         ...j,
-        company: d.hiringOrganization?.name || j.company,
+        company: j.company && j.company !== String(j.board || '').split('/')[0] ? j.company : cleanOrg(d.hiringOrganization?.name) || j.company,
+        entity: d.hiringOrganization?.name || null,
         title: info.title || j.title,
         location: [info.location, ...(info.additionalLocations || [])].filter(Boolean).join('; ') || j.location,
         description: clip(htmlToText(info.jobDescription), DESC_MAX),
@@ -496,4 +503,84 @@ export async function fetchJobFromUrl(url) {
   if (found) return found;
   const title = decodeEntities((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').trim();
   return job({ key: `web:${hash(url)}`, source: 'web', ats: detectAts(url), title, url, description: htmlToText(html) });
+}
+
+// ---------- Board discovery by probing likely slugs ----------
+
+const SUFFIXES = ['partners', 'partner', 'capital', 'group', 'investments', 'investment', 'management', 'advisors', 'advisory', 'holdings',
+  'company', 'and co', 'co', 'inc', 'llc', 'llp', 'ltd', 'ventures', 'venture', 'consulting', 'associates', 'global', 'asia', 'international'];
+
+export function slugCandidates(name) {
+  const base = String(name).toLowerCase()
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/\(.*?\)/g, ' ').replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = base.split(' ').filter(Boolean);
+  const out = new Set();
+  const add = (ws) => { if (ws.length) { out.add(ws.join('')); out.add(ws.join('-')); } };
+  add(words);
+  add(words.filter((w) => w !== 'and'));
+  let trimmed = [...words];
+  while (trimmed.length > 1 && SUFFIXES.includes(trimmed[trimmed.length - 1])) { trimmed = trimmed.slice(0, -1); add(trimmed); }
+  if (words.length > 1) out.add(words.map((w) => w[0]).join(''));
+  return [...out].filter((s) => s.length >= 2).slice(0, 8);
+}
+
+function nameMatches(boardName, firm) {
+  const a = String(boardName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const b = String(firm || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '');
+  if (!a || !b) return false;
+  const core = b.replace(/(partners|capital|group|investments?|management|advisors|consulting|associates|ventures?|and|co|inc|llc)+$/g, '') || b;
+  return a.includes(core.slice(0, Math.max(4, Math.min(core.length, 8)))) || core.includes(a.slice(0, Math.max(4, Math.min(a.length, 8))));
+}
+
+async function tryJSON(url, opts) {
+  try { return await getJSON(url, { retries: 0, timeout: 12000, ...opts }); } catch { return null; }
+}
+
+// Try a firm on the open ATS APIs. Returns boards that exist and look like the firm.
+export async function probeFirm(name, extraSlugs = []) {
+  const slugs = [...new Set([...extraSlugs, ...slugCandidates(name)])];
+  const found = [];
+  await mapLimit(slugs, 3, async (slug) => {
+    const gh = await tryJSON(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}`);
+    if (gh?.name) {
+      const jobs = await tryJSON(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs`);
+      found.push({ ats: 'greenhouse', slug, boardName: gh.name, jobs: jobs?.jobs?.length ?? 0, match: nameMatches(gh.name, name) });
+    }
+    for (const region of [undefined, 'eu']) {
+      const host = region ? 'api.eu.lever.co' : 'api.lever.co';
+      const lv = await tryJSON(`https://${host}/v0/postings/${encodeURIComponent(slug)}?mode=json&limit=3`);
+      if (Array.isArray(lv)) found.push({ ats: 'lever', slug, region, boardName: slug, jobs: lv.length, match: lv.length > 0 && nameMatches(slug, name) });
+    }
+    const ab = await tryJSON(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}`);
+    if (ab && Array.isArray(ab.jobs)) found.push({ ats: 'ashby', slug, boardName: slug, jobs: ab.jobs.length, match: nameMatches(slug, name) });
+    const sr = await tryJSON(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=1`);
+    if (sr && sr.totalFound > 0) found.push({ ats: 'smartrecruiters', slug, boardName: sr.content?.[0]?.company?.name || slug, jobs: sr.totalFound, match: nameMatches(sr.content?.[0]?.company?.name || slug, name) });
+    const rc = await tryJSON(`https://${slug}.recruitee.com/api/offers/`);
+    if (rc && Array.isArray(rc.offers)) found.push({ ats: 'recruitee', slug, boardName: rc.offers[0]?.company_name || slug, jobs: rc.offers.length, match: nameMatches(rc.offers[0]?.company_name || slug, name) });
+  });
+  return { firm: name, tried: slugs, found: found.sort((a, b) => Number(b.match) - Number(a.match) || b.jobs - a.jobs) };
+}
+
+// Workday: find which wdN host a tenant lives on, then which site name answers.
+const WD_HOSTS = ['wd1', 'wd3', 'wd5', 'wd10', 'wd12', 'wd103', 'wd108'];
+export async function probeWorkday(tenant, { sites = [], hosts = WD_HOSTS } = {}) {
+  const T = tenant.charAt(0).toUpperCase() + tenant.slice(1);
+  const siteNames = [...new Set([...sites, tenant, T, tenant.toUpperCase(), `${T}_Careers`, `${tenant}_careers`, `${T}Careers`, 'External', 'external', 'Careers',
+    'External_Careers', 'ExternalCareers', 'Campus', 'University', 'Students', 'Early_Careers', 'EarlyCareers', `${T}_External`, `${T}_Campus`, 'jobs', 'Jobs'])];
+  const found = [];
+  for (const h of hosts) {
+    const host = `${tenant}.${h}.myworkdayjobs.com`;
+    const live = await (async () => { try { await request(`https://${host}/`, { retries: 0, timeout: 10000 }); return true; } catch (e) { return e instanceof HttpError; } })();
+    if (!live) continue;
+    await mapLimit(siteNames, 4, async (site) => {
+      const data = await tryJSON(`https://${host}/wday/cxs/${tenant}/${site}/jobs`, {
+        method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ appliedFacets: {}, limit: 3, offset: 0, searchText: '' }),
+      });
+      if (data && Array.isArray(data.jobPostings)) found.push({ ats: 'workday', host, tenant, site, jobs: data.total ?? data.jobPostings.length, sample: data.jobPostings.slice(0, 3).map((p) => `${p.title} | ${p.locationsText || ''}`) });
+    });
+    if (found.length) break;
+  }
+  return { tenant, found };
 }

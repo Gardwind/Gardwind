@@ -110,7 +110,15 @@ already ≥ `settings.readyCap` — the owner has enough to look at.
    LinkedIn/Indeed (not fetchable), WebSearch for the same title + company on the company's
    own careers site and use that URL instead. Add good ones to the candidate list.
 3. Discovery (≤ 10 web searches per run):
-   - `sources/main.targetFirms` with `status: "unresolved"`: search the job-board hosts
+   - First probe, it costs no web searches (about a minute):
+     `$JP probe --sources /tmp/jobrun/state/sources/main.json --out $W/probe.json` tries every
+     unresolved firm on Greenhouse, Lever, Ashby, SmartRecruiters and Recruitee, and
+     `$JP probe-workday --tenants "<lowercase firm names>"` finds Workday boards (banks and big
+     funds mostly use Workday). **A hit is only a candidate:** other companies share names
+     (StepStone is also a German job site, PAG a French security firm, "arch"/"atlas" are
+     startups). Fetch the board once and read 3 sample postings; add it only if they are clearly
+     the target firm. Big boards (e.g. Marsh McLennan for Oliver Wyman) need `search` terms.
+   - Then for firms still `"unresolved"`: search the job-board hosts
      directly, e.g. `"<firm>" (site:myworkdayjobs.com OR site:greenhouse.io OR site:lever.co OR site:ashbyhq.com OR site:smartrecruiters.com)`;
      plain "<firm> careers" searches mostly return aggregators. Take any board URL you find
      and run `$JP board --url <url>` — it only parses the URL and needs no network. If it
@@ -171,7 +179,12 @@ scored jobs, best first:
    sponsorship (from `workAuth`), start date, salary expectation (only from `savedAnswers`,
    otherwise "Open to discussion in line with the role's band"), notice period. Check them
    the same way.
-4. Put `materials: {cv, coverLetter, answers, truth: {ok, warnings}, ats: {ok, coverage}}`
+4. If the posting gives a closing date, set `deadline: "YYYY-MM-DD"` on the job (the board shows it, and
+   needsYou should mention ready jobs closing within 7 days). Read eligibility lines (class year,
+   MBA-only, years of experience, PhD, languages, visa) before scoring: an ineligible role is not
+   a match, but list notable ones in the digest's `done` as "Not eligible, skipped: …" so the
+   owner can override.
+5. Put `materials: {cv, coverLetter, answers, truth: {ok, warnings}, ats: {ok, coverage}}`
    into `$W/new/<id>.json`, `status: "ready"` (history entry). In `auto` mode with
    `fit.score >= autoThreshold` and no flags: `status: "approved"`, `decision: {by: "auto", at}`.
 
