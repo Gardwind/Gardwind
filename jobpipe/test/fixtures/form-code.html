@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Apply</title></head>
+<body>
+<div id="step1">
+  <form id="f" onsubmit="event.preventDefault(); document.getElementById('step1').hidden = true; document.getElementById('step2').hidden = false;">
+    <label for="email">Email *</label><input id="email" name="email" type="email" required>
+    <button type="submit">Submit application</button>
+  </form>
+</div>
+<div id="step2" hidden>
+  <form onsubmit="event.preventDefault(); if (document.getElementById('code').value === '482913') { document.body.innerHTML = '<h1>Thank you for your application</h1>'; } else { document.getElementById('err').textContent = 'Wrong code'; }">
+    <p>We sent a code to your email.</p>
+    <label for="code">Verification code</label><input id="code" name="code">
+    <div id="err" role="alert"></div>
+    <button type="submit">Submit</button>
+  </form>
+</div>
+</body></html>

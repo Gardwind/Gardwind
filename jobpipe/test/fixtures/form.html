@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Apply – Restructuring Analyst</title></head>
+<body>
+<h1>Restructuring Analyst</h1>
+<form action="thanks.html" method="get" id="application">
+  <div class="field"><label for="first_name">First Name *</label><input id="first_name" name="first_name" required></div>
+  <div class="field"><label for="last_name">Last Name *</label><input id="last_name" name="last_name" required></div>
+  <div class="field"><label for="email">Email *</label><input id="email" name="email" type="email" required></div>
+  <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" type="tel"></div>
+  <div class="field"><label for="resume">Resume/CV *</label><input id="resume" name="resume" type="file" accept=".pdf" required></div>
+  <div class="field"><label for="country">Country of residence *</label>
+    <select id="country" name="country" required><option value="">Select...</option><option value="cn">China</option><option value="fr">France</option><option value="gb">United Kingdom</option></select></div>
+  <fieldset class="field"><legend>Will you now or in the future require visa sponsorship? *</legend>
+    <label><input type="radio" name="sponsorship" value="yes" required> Yes</label>
+    <label><input type="radio" name="sponsorship" value="no"> No</label></fieldset>
+  <div class="field"><label for="why">Why are you interested in this role?</label><textarea id="why" name="why" maxlength="1000"></textarea></div>
+  <div class="field"><label><input type="checkbox" id="consent" name="consent" required> I agree to the privacy notice *</label></div>
+  <button type="submit">Submit application</button>
+</form>
+</body></html>

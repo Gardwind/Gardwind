@@ -1,0 +1,10 @@
+# Personal data never belongs in this public repo.
+node_modules/
+runs/
+out/
+tmp/
+*.pdf
+!jobpipe/test/fixtures/cv.pdf
+*.png
+.env
+.DS_Store
