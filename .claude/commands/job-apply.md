@@ -27,8 +27,10 @@ from that company first — if one exists, mark `applied` and stop (never submit
 **c. Documents.** Write `D/tailored.json` (= `materials.cv`) and run
 `$JP cv --resume D/tailored.json --master /tmp/jobrun/master.json --out D/<Firstname>_<Lastname>_CV.pdf`.
 Require `truth.ok`, `ats.ok`, one page. If the form takes a cover letter and
-`materials.coverLetter` exists: write `D/letter.json` (add `company`, `date`, `subject`:
-"Application for <role>") and `$JP letter --letter D/letter.json --master /tmp/jobrun/master.json --out D/<Firstname>_<Lastname>_Cover_Letter.pdf`.
+`materials.coverLetter` exists: write `D/letter.json` (= `materials.coverLetter`; no date,
+address or subject, the owner wants no header) and
+`$JP letter --letter D/letter.json --master /tmp/jobrun/master.json --facts /tmp/jobrun/state/profile/main.json --out D/<Firstname>_<Lastname>_Cover_Letter.pdf`.
+Require `check.ok` and `pdf.fits` (one page, Times New Roman 12 pt or 11 pt).
 Use the real name from `profile/main.name` in file names.
 
 **d. Can it be done here?** By `job.ats`:

@@ -342,7 +342,7 @@ function detailBody(j, tab) {
   if (tab === 'letter') {
     const L = m.coverLetter;
     const pdf = pdfLink(j, 'letter', 'Save PDF', 'link');
-    const text = [L.salutation || 'Dear Hiring Team,', ...(L.paragraphs || []), L.closing || 'Kind regards,'].join('\n\n');
+    const text = [L.salutation || 'Dear Hiring Team,', ...(L.paragraphs || []), L.closing || 'Sincerely,', S.profile?.name || ''].filter((x) => String(x).trim()).join('\n\n');
     return `<div class="actions">${pdf}<button class="btn quiet small" data-act="copy" data-text="${esc(text)}">Copy letter</button></div><div class="textbox">${esc(text)}</div>`;
   }
   if (tab === 'answers') {

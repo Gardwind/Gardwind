@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { escapeHtml, norm } from './util.mjs';
 import { launchBrowser } from './pw.mjs';
+import { ensureTimesNewRoman } from './fonts.mjs';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -133,28 +134,22 @@ ${parts.join('\n')}
 </body></html>`;
 }
 
-// letter: {date, recipient, company, location, subject, salutation, paragraphs:[], closing}
-export function letterHTML(letter, basics = {}, { fontPt = 11 } = {}) {
-  const contact = [basics.location, basics.phone, basics.email].filter(Boolean).map(escapeHtml).join(' &nbsp;|&nbsp; ');
-  const to = [letter.recipient, letter.company, letter.location].filter(Boolean).map(escapeHtml).join('<br>');
-  const paras = (letter.paragraphs || []).map((p) => `<p>${escapeHtml(p)}</p>`).join('');
+// Cover letter in the owner's own format. There is no header: the letter is attached to the
+// application, so name, contact details, date, address and subject line are left out. It opens
+// with the salutation and ends with the closing and the name, in Times New Roman with 1-inch
+// margins and the spacing of the owner's Word letter (15.85 pt lines at 12 pt, 14.65 pt after
+// each paragraph). letter: {salutation, paragraphs: [], closing}; any other field is ignored.
+export function letterHTML(letter, basics = {}, { fontPt = 12 } = {}) {
+  const k = fontPt / 12;
+  const blocks = [letter.salutation || 'Dear Hiring Team,', ...(letter.paragraphs || []), letter.closing || 'Sincerely,', basics.name || '']
+    .filter((p) => String(p).trim());
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Cover letter</title><style>
-@page { size: A4; margin: 20mm 22mm; }
-body { margin: 0; color: #111; font-family: 'Charter', 'Bitstream Charter', 'Caladea', 'Cambria', 'Georgia', serif; font-size: ${fontPt}pt; line-height: 1.42; font-variant-ligatures: none; }
-.name { font-size: ${fontPt * 1.5}pt; font-weight: bold; margin: 0; }
-.contact { margin: 2pt 0 18pt; font-size: ${fontPt * 0.92}pt; }
-.to, .date { margin: 0 0 12pt; }
-.subject { font-weight: bold; margin: 0 0 12pt; }
-p { margin: 0 0 10pt; }
+@page { size: A4; margin: 25.4mm; }
+html, body { margin: 0; }
+body { color: #000; font-family: 'Times New Roman', 'Liberation Serif', 'Tinos', Times, serif; font-size: ${fontPt}pt; line-height: ${(15.85 * k).toFixed(2)}pt; font-variant-ligatures: none; }
+p { margin: 0 0 ${(14.65 * k).toFixed(2)}pt; }
 </style></head><body>
-<p class="name">${escapeHtml(basics.name || '')}</p>
-<p class="contact">${contact}</p>
-<p class="date">${escapeHtml(letter.date || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
-${to ? `<p class="to">${to}</p>` : ''}
-${letter.subject ? `<p class="subject">${escapeHtml(letter.subject)}</p>` : ''}
-<p>${escapeHtml(letter.salutation || 'Dear Hiring Team,')}</p>
-${paras}
-<p>${escapeHtml(letter.closing || 'Kind regards,')}<br>${escapeHtml(basics.name || '')}</p>
+${blocks.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n')}
 </body></html>`;
 }
 
@@ -199,16 +194,25 @@ export async function renderResumePdf(resume, outPath, { maxPages = 1, htmlOut }
   return { path: outPath, pages, fontPt: used, fits: pages <= maxPages };
 }
 
-export async function renderLetterPdf(letter, basics, outPath) {
+// 12 pt, or 11 pt when 12 does not fit on one page (the owner accepts either size).
+export async function renderLetterPdf(letter, basics, outPath, { maxPages = 1 } = {}) {
+  const font = ensureTimesNewRoman();
   const { browser, context } = await launchBrowser();
+  let pages = 0;
+  let used = 12;
   try {
     const page = await context.newPage();
-    await page.setContent(letterHTML(letter, basics), { waitUntil: 'load' });
-    await page.pdf({ path: outPath, format: 'A4', printBackground: true, preferCSSPageSize: true });
+    for (const size of [12, 11]) {
+      await page.setContent(letterHTML(letter, basics, { fontPt: size }), { waitUntil: 'load' });
+      await page.pdf({ path: outPath, format: 'A4', printBackground: true, preferCSSPageSize: true });
+      pages = pdfPages(outPath);
+      used = size;
+      if (pages <= maxPages) break;
+    }
   } finally {
     await browser.close();
   }
-  return { path: outPath, pages: pdfPages(outPath) };
+  return { path: outPath, pages, fits: pages <= maxPages, fontPt: used, font: font.font, ...(font.note ? { note: font.note } : {}) };
 }
 
 // Can a parser read the PDF back? Checks contact details and that each bullet

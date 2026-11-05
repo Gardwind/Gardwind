@@ -21,7 +21,8 @@ Keep a running list of what you did, what needs the owner, and errors — step 9
 ## 0. Prepare (2 minutes)
 
 1. `$JP selftest`. If a check fails, note it under errors and skip steps that need it
-   (Chromium → no submitting or PDFs).
+   (Chromium → no submitting or PDFs). Then `$JP fonts`: it installs Times New Roman for cover
+   letters when the container lacks it; if it reports Liberation Serif, note that in the digest.
    Check which tools this session has. **No Gmail tools** (`mcp__…Gmail…`): skip step 2,
    don't submit to forms that email a verification code (you can't read it), and add one
    needsYou line: "The daily run can't read your Gmail: open your scheduled tasks on claude.ai,
@@ -197,8 +198,10 @@ scored jobs, best first:
    education entry's alternate (`alternates.when` / `alternates.end`); otherwise keep the master's
    dates. Use the same year in every form answer for that job.
 2. **Cover letter** (only if the posting or form asks, or it's a small firm / fund):
-   `{salutation, paragraphs: [3 short paragraphs], closing}`, ≤ 220 words: why this firm (one
-   specific fact from the posting or their site), why you (two matched experiences), close.
+   `{salutation: "Dear <team> team,", paragraphs: [3 short paragraphs], closing: "Sincerely,"}`,
+   ≤ 220 words: why this firm (one specific fact from the posting or their site), why you (two
+   matched experiences), close; the last paragraph ends "I would welcome the chance to discuss my
+   application." No date, address or subject: the letter has no header (see `CLAUDE.md`).
    Check: `$JP check-text --master $W/master.json --text "<all paragraphs>" --facts /tmp/jobrun/state/profile/main.json`.
 3. **Likely answers** `[{q, a}]`: why this firm / role (≤ 120 words), right to work &
    sponsorship (from `workAuth`), start date, salary expectation (only from `savedAnswers`,

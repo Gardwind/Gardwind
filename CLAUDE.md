@@ -43,3 +43,9 @@ and answer the odd question on the board.
 Plain, short, specific. Lead with what they need to do. No filler, no hype words
 ("passionate", "dynamic", "fast-paced"). Cover letters ≤ 220 words, three short paragraphs,
 one concrete reason for that firm. British English for UK/EU/HK roles.
+
+**Cover letter format (the owner's own, insisted on):** no header — no name, contact details,
+date, address or subject line, because the letter is attached to the application. It opens with
+"Dear <team> team,", the last paragraph ends with "I would welcome the chance to discuss my
+application.", then "Sincerely," and the name. Times New Roman 12 pt (11 pt only if needed to
+fit one page), 1-inch margins. `jobpipe letter` produces exactly this; don't build letters another way.

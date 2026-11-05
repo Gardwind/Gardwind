@@ -2,7 +2,7 @@
 // owner-approved alternates for fixed fields.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resumeHTML, allHighlights, entryWhen } from '../lib/resume.mjs';
+import { resumeHTML, allHighlights, entryWhen, letterHTML } from '../lib/resume.mjs';
 import { truthCheck } from '../lib/truth.mjs';
 
 const master = {
@@ -54,4 +54,15 @@ test('truth check: sub-bullets need sources, alternates are allowed, other chang
   const r = truthCheck(master, bad);
   const types = r.errors.map((e) => `${e.type}:${e.field || ''}`).sort();
   assert.deepEqual(types, ['changed_field:when', 'changed_field:when', 'new_number:', 'no_source:']);
+});
+
+test('cover letter has no header and is set in Times New Roman 12 pt', () => {
+  const letter = { date: '5 November 2026', subject: 'Application: Analyst', company: 'Firm', location: 'Paris', salutation: 'Dear Advisory team,', paragraphs: ['One.', 'Two.'] };
+  const html = letterHTML(letter, master.basics);
+  assert.match(html, /font-family: 'Times New Roman'/);
+  assert.match(html, /font-size: 12pt/);
+  assert.match(html, /<body>\n<p>Dear Advisory team,<\/p>/);
+  assert.match(html, /<p>Two\.<\/p>\n<p>Sincerely,<\/p>\n<p>Alex Sample<\/p>/);
+  for (const s of ['alex@example.com', '+44 7700', '5 November 2026', 'Application: Analyst', 'Paris']) assert.ok(!html.includes(s), s);
+  assert.match(letterHTML({ paragraphs: ['x'] }, {}, { fontPt: 11 }), /font-size: 11pt/);
 });

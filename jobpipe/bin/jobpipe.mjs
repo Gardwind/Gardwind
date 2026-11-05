@@ -28,7 +28,9 @@ const HELP = `jobpipe <command> [options]
   stage        --candidates candidates.json --ids a,b,c --out-dir dir   base job documents for the board
   batch        --dir dir --collection jobs --out batch.json  ArtifactData batch writes (50 per chunk)
   cv           --resume tailored.json --out cv.pdf [--master master.json] [--html cv.html] [--max-pages 1]
-  letter       --letter letter.json --master master.json --out letter.pdf
+  letter       --letter letter.json --master master.json --out letter.pdf [--facts profile.json]
+               no header; Times New Roman 12 pt (11 pt if needed for one page)
+  fonts        install Times New Roman for letters if this machine lacks it
   truth        --master master.json --tailored tailored.json
   check-text   --master master.json (--text "..." | --file answers.txt) [--facts profile.json]
   scam         --job job.json
@@ -187,7 +189,12 @@ async function main() {
       const check = textCheck((letter.paragraphs || []).join('\n'), master, args.facts ? JSON.stringify(readJSON(args.facts)) : '');
       const pdf = await renderLetterPdf(letter, master.basics || {}, need('out'));
       out({ pdf, check });
-      if (!check.ok) process.exitCode = 2;
+      if (!check.ok || !pdf.fits) process.exitCode = 2;
+      break;
+    }
+    case 'fonts': {
+      const { ensureTimesNewRoman } = await import('../lib/fonts.mjs');
+      out(ensureTimesNewRoman());
       break;
     }
     case 'truth': {
