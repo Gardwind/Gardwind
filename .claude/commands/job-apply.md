@@ -41,12 +41,18 @@ Use the real name from `profile/main.name` in file names.
   yourself — CV, letter and answers are ready on this card", link: applyUrl}`. Upload the PDFs
   for the owner (step h) and stop.
 
-What the first real run (Nov 2026) found from the cloud: Greenhouse showed an email
-security-code step after Submit and the code never reached Gmail; SmartRecruiters answered
-"Access is temporarily restricted". So: try each ATS at most once per run; if Greenhouse asks
-for a code and none arrives within 5 minutes, or SmartRecruiters blocks, make the job
-`manual` with the PDFs (step h) and don't try that ATS again in the same run. Never look for
-a way around the check.
+What works from the cloud (tested 3–5 Nov 2026):
+- **Greenhouse:** after Submit it asks for an 8-digit email security code. The code arrives
+  in Gmail within ~20 seconds from `no-reply@us.greenhouse-mail.io`, subject "Security code
+  for your application to <Company>". Search exactly
+  `from:no-reply@us.greenhouse-mail.io subject:"security code" newer_than:1d`, take the newest
+  message dated after the submission started (read the code from the snippet) and write it to
+  `D/code.txt`. Five Greenhouse applications went through this way on 5 Nov.
+- **Teamtailor** (Indefi) and **50skills** (Stifel) forms submit normally.
+- **Recruitee** showed an hCaptcha picture challenge after Send, so it is `manual`.
+- **SmartRecruiters** answers "Access is temporarily restricted" → `manual`.
+- **Workday, Oleeo (tal.net), Oracle, Cornerstone** need an account → `manual`.
+Never solve or get around a challenge; stop and make the job `manual` with the PDFs (step h).
 
 **e. Inspect.** `$JP form-inspect --url <applyUrl> --out D/fields.json --shot D/form.png`
 (Lever: `applyUrl` ends in `/apply`; Ashby: `/application`). Read `fields.json`: every field,
@@ -91,9 +97,10 @@ Where answers come from:
    and press Submit yourself — use the CV and answers on this card", link}`. Upload PDFs (h).
 3. Submit, in the background so you can fetch a verification code:
    `$JP form-fill --plan D/plan.json --submit --shots D/shots --code-file D/code.txt --code-timeout 300 --out D/result.json`
-   While it runs, watch for `D/shots/needs_code.json`. If it appears: search Gmail for the
-   newest message from that company (or the ATS: greenhouse, lever, ashby…) from the last 15
-   minutes containing a code, write just the code to `D/code.txt`.
+   While it runs, watch for `D/shots/needs_code.json` (it appears within ~30 s). Then search
+   Gmail as described above (Greenhouse) or for the newest message from that company or ATS
+   from the last 15 minutes containing a code, and write just the code to `D/code.txt`. The
+   form waits up to `--code-timeout` seconds; the run must not end before `D/result.json` exists.
 4. Read `D/result.json` → `status`:
    - `submitted` → job `status: "applied"`, `appliedOn: today`, `apply {method: "auto",
      result: "submitted", confirmation: <first 200 chars of pageText>, finalUrl}`, `nextStep:
