@@ -134,6 +134,12 @@ already ≥ `settings.readyCap` — the owner has enough to look at.
      words in English and French ("stage", "M&A", "private equity", "restructuring") and the
      target cities and start months. A Teamtailor form was submitted from the cloud on 3 Nov
      (Indefi); Workable answered "too many requests" that day, so try it once and move on.
+   - Programme trackers (best source on 5 Nov): The Trackr lists finance programmes with
+     open and close dates and apply links, e.g. `https://app.the-trackr.com/uk-finance/summer-internships`,
+     `/uk-finance/off-cycle-internships`, `/uk-finance/graduate-programmes` and the same three
+     under `/france-finance/`. They render with JavaScript: open them with Playwright (a plain
+     page view, wait ~10 s), read the table rows and links, keep rows opened this cycle and not
+     yet closed, then read each posting on the firm's own site before judging it.
    - Hiring posts on LinkedIn ("my team is hiring"): never log in to or scrape LinkedIn.
      Web search rarely indexes these posts; use the owner's LinkedIn alert emails (step 2) and
      find the same role on the firm's own careers site.
