@@ -135,6 +135,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mu
 .fab{position:fixed;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 16px);box-shadow:0 6px 18px var(--shadow);border-radius:999px;padding:13px 19px;z-index:6}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 76px);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
 .sheet-bg{position:fixed;inset:0;background:rgba(8,12,11,.48);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet-bg[hidden],#toast[hidden]{display:none}
 .sheet{background:var(--surface);width:100%;max-width:760px;max-height:92%;overflow:auto;border-radius:18px 18px 0 0;padding-block:18px calc(env(safe-area-inset-bottom,0px) + 18px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
 .sheet h3{font-family:var(--f-display);font-size:20px;margin:0}
 .muted{color:var(--muted)}
@@ -195,7 +196,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 const S = {
   jobs: [], questions: [], digests: [], settings: null, profile: null, resume: null, sources: null,
-  got: {}, db: null, mcp: null, canWrite: true, loadError: false,
+  got: {}, db: null, mcp: null, downloads: null, canWrite: true, loadError: false,
   open: new Set(), skipOpen: new Set(), subtab: new Map(), drafts: new Map(), confirmDel: new Set(),
   filter: 'active', q: '', sort: 'next', pending: false, busy: new Set(),
 };
@@ -221,6 +222,33 @@ function ago(iso) {
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 2600);
+}
+// CV / letter PDFs. A new tab can't open board files in the Claude phone app, so the button
+// fetches the file inside the page and hands it to Claude's save sheet. The link is the fallback.
+const fileSafe = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, 'and').replace(/[.'\u2019]/g, '').replace(/[^A-Za-z0-9-]+/g, '_').replace(/^_+|_+$/g, '');
+function pdfName(j, kind) {
+  return `${fileSafe(S.profile?.name) || 'Application'}_${kind === 'letter' ? 'Cover_Letter' : 'CV'}${j.company ? '_' + fileSafe(j.company) : ''}.pdf`;
+}
+function pdfLink(j, kind, label, cls) {
+  const url = kind === 'letter' ? j.materials?.letterPdfUrl : j.materials?.cvPdfUrl;
+  if (!url) return '';
+  return `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener" data-act="pdf" data-url="${esc(url)}" data-name="${esc(pdfName(j, kind))}">${label}</a>`;
+}
+async function savePdf(url, filename, el) {
+  if (el.dataset.busy) return;
+  el.dataset.busy = '1'; el.setAttribute('aria-busy', 'true');
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw { code: 'fetch_' + r.status };
+    await S.downloads.save({ filename, data: await r.blob() });
+  } catch (e) {
+    const code = e && e.code;
+    if (code === 'declined') { /* the viewer said no */ }
+    else if (code === 'rate_limited') toast('A save is already open. Finish it first.');
+    else if (['unavailable', 'not_granted', 'capability_disabled', 'capability_removed', 'extension_not_enabled'].includes(code)) { S.downloads = null; toast('Saving isn\'t available here. Tap again to open the PDF instead.'); }
+    else if (String(code).startsWith('fetch_')) toast('That PDF is missing. Ask Claude to make it again.');
+    else toast('Couldn\'t get the PDF. Check your connection and try again.');
+  } finally { delete el.dataset.busy; el.removeAttribute('aria-busy'); }
 }
 const contactText = (c) => (!c ? '' : typeof c === 'string' ? c : [c.name, c.role, c.email].filter(Boolean).join(' · '));
 const fitClass = (s) => (s >= 80 ? 'strong' : s >= 65 ? 'good' : '');
@@ -308,12 +336,12 @@ function detailBody(j, tab) {
   if (tab === 'cv') {
     const t = m.truth;
     const check = t ? (t.ok ? '<span class="chip good">Checked against your master CV</span>' : '<span class="chip bad">Check failed — will not be sent</span>') : '';
-    const pdf = m.cvPdfUrl ? `<a class="link" href="${esc(m.cvPdfUrl)}" target="_blank" rel="noopener">Open PDF ↗</a>` : '';
+    const pdf = pdfLink(j, 'cv', 'Save PDF', 'link');
     return `<div class="chips">${check}${m.ats?.coverage ? `<span class="chip">Readable by ATS: ${esc(m.ats.coverage)}%</span>` : ''}${pdf}</div>${cvHTML(m.cv)}`;
   }
   if (tab === 'letter') {
     const L = m.coverLetter;
-    const pdf = m.letterPdfUrl ? `<a class="link" href="${esc(m.letterPdfUrl)}" target="_blank" rel="noopener">Open PDF ↗</a>` : '';
+    const pdf = pdfLink(j, 'letter', 'Save PDF', 'link');
     const text = [L.salutation || 'Dear Hiring Team,', ...(L.paragraphs || []), L.closing || 'Kind regards,'].join('\n\n');
     return `<div class="actions">${pdf}<button class="btn quiet small" data-act="copy" data-text="${esc(text)}">Copy letter</button></div><div class="textbox">${esc(text)}</div>`;
   }
@@ -388,8 +416,8 @@ function stuckCard(j) {
     ${(b.deadline || j.deadline) ? `<div class="chips"><span class="chip warn">Deadline ${esc(fmtDay(b.deadline || j.deadline))}</span></div>` : ''}
     <div class="actions">
       ${link ? `<a class="btn small" href="${esc(link)}" target="_blank" rel="noopener">Open application ↗</a>` : ''}
-      ${m.cvPdfUrl ? `<a class="btn quiet small" href="${esc(m.cvPdfUrl)}" target="_blank" rel="noopener">CV PDF ↗</a>` : ''}
-      ${m.letterPdfUrl ? `<a class="btn quiet small" href="${esc(m.letterPdfUrl)}" target="_blank" rel="noopener">Letter PDF ↗</a>` : ''}
+      ${pdfLink(j, 'cv', 'CV PDF', 'btn quiet small')}
+      ${pdfLink(j, 'letter', 'Letter PDF', 'btn quiet small')}
       ${S.canWrite ? `<button class="btn ghost small" data-act="applied" data-id="${esc(j.id)}">I applied</button><button class="btn ghost small" data-act="skip" data-id="${esc(j.id)}" data-reason="Gave up">Skip</button>` : ''}
       <button class="link push" data-act="toggle" data-id="${esc(j.id)}" aria-expanded="${open}">${open ? 'Hide' : 'CV & answers'}</button>
     </div>
@@ -747,6 +775,7 @@ document.addEventListener('click', async (e) => {
     case 'applied': if (j) await markApplied(j); break;
     case 'goto': S.filter = 'all'; S.q = ''; S.open.add(id); if (b.dataset.tab) S.subtab.set(id, b.dataset.tab); if (location.hash !== '#pipeline') location.hash = '#pipeline'; else render(); setTimeout(() => document.querySelector(`article[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'start' }), 160); break;
     case 'copy': copyText(b.dataset.text, b); break;
+    case 'pdf': if (S.downloads) { e.preventDefault(); await savePdf(b.dataset.url, b.dataset.name, b); } break;
     case 'filter': S.filter = S.filter === b.dataset.f && b.dataset.f !== 'all' ? 'all' : b.dataset.f; S.q = ''; render(); break;
     case 'savenotes': if (j) { const ok = await setJob(id, { notes: S.drafts.has('n:' + id) ? S.drafts.get('n:' + id) : j.notes || '' }, 'Notes saved'); if (ok) S.drafts.delete('n:' + id); } break;
     case 'delete':
@@ -842,6 +871,7 @@ render();
   S.db = db;
   try { const user = await window.claude.use('user'); const w = user ? await user.can('data.write') : null; S.canWrite = w !== false; } catch { S.canWrite = true; }
   window.claude.use('mcp').then((m) => { S.mcp = m || null; schedule(); }).catch(() => {});
+  window.claude.use('downloads').then((d) => { S.downloads = d || null; }).catch(() => {});
   const timer = setTimeout(() => { if (!S.got.jobs) { S.loadError = true; schedule(); } }, 10000);
   const done = (key) => (snap) => { if (key === 'jobs' && !snap.metadata?.fromCache) clearTimeout(timer); S.got[key] = true; schedule(); };
   const fail = (key) => () => { S.got[key] = true; if (key === 'jobs') { clearTimeout(timer); S.loadError = true; } schedule(); };
