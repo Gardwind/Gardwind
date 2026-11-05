@@ -164,6 +164,15 @@ For the best ~15 candidates (by `pre` score), read the posting and score fit 0�
 
 Subtract for: required language gaps (−15 each), visa sponsorship needed but not offered (−20),
 more than 2 years' required experience (−15), deal-breakers (exclude).
+
+**Must-haves are literal.** Before scoring, list the posting's hard requirements ("must",
+"required", "candidates should have completed…", "previous internship in X", "only accepting",
+degree type, graduation window, start month). Check each against the master CV and
+`profile/main.facts` as written: a neighbouring field does not count (e.g. work for a
+court-appointed administrator is not investment banking, debt advisory or M&A; venture capital is
+not M&A advisory). If one hard requirement isn't met, the job is not eligible: skip it with the
+reason. Only "preferred / a plus / appreciated / desirable" items become `gaps`. If you can't tell
+whether a requirement is met, keep the job `ready` (never `approved`) and name the doubt in `gaps`.
 `verdict`: strong ≥ 80, good 65–79, stretch < 65. `why`: one or two plain sentences naming
 the strongest match. `meets` / `gaps`: short phrases.
 
