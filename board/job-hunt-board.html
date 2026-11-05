@@ -119,6 +119,8 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mu
 .fbox span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .fbox[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.sheetrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:13.5px;color:var(--muted)}
+.sheetrow span{flex:1 1 180px}
 .toolbar input{flex:1 1 200px}
 .toolbar select{width:auto}
 .rowhead{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;background:none;border:0;padding:0;text-align:left;width:100%}
@@ -493,6 +495,84 @@ function viewToday() {
   return out.join('');
 }
 
+// ---------- Google Sheet of all applications ----------
+// Same columns and order as jobpipe/lib/tracker.mjs: keep the two in step. Drive here can create
+// a sheet but not edit one, so "Update sheet" makes a fresh copy and moves the old one to the bin.
+const SHEET_HEADER = ['Group', 'Firm', 'Role', 'City', 'Status', 'What to do', 'Deadline', 'Applied on', 'Fit', 'Last email', 'Apply', 'Gmail', 'Updated'];
+const SHEET_GROUP = { manual: 0, blocked: 0, ready: 0, approved: 0, applying: 0, applied: 1, screening: 1, interviewing: 1, offer: 1, accepted: 2, rejected: 2, ghosted: 2, withdrawn: 2, skipped: 2, saved: 3, found: 3 };
+const SHEET_GROUP_NAME = ['To do', 'In progress', 'Closed', 'Leads'];
+function sheetCSV(jobs) {
+  const day = (x) => (x ? String(x).slice(0, 10) : '');
+  const clip = (x, max = 150) => {
+    const t = String(x || '').trim(); if (t.length <= max) return t;
+    const cut = t.slice(0, max); const end = cut.lastIndexOf('. ');
+    return end > 60 ? cut.slice(0, end + 1) : `${cut.replace(/\s+\S*$/, '').replace(/[,:;(]$/, '')}…`;
+  };
+  const todo = (j) => {
+    switch (j.status) {
+      case 'manual': case 'blocked': return j.blocker?.action || j.blocker?.detail || 'Needs you: see the card on the board';
+      case 'ready': return 'Approve or skip on the board';
+      case 'approved': return 'Claude sends it on the next run';
+      case 'applying': return 'Being sent';
+      case 'saved': case 'found': return 'Claude scores it on the next run';
+      case 'accepted': case 'rejected': case 'ghosted': case 'withdrawn': case 'skipped': return j.decision?.reason || '';
+      default: return [j.nextStep, j.nextDate ? `by ${day(j.nextDate)}` : ''].filter(Boolean).join(' ');
+    }
+  };
+  const lastEmail = (j) => { const e = [...(j.emails || [])].sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).pop(); return e ? `${day(e.at)} · ${[e.kind, e.subject].filter(Boolean).join(': ')}` : ''; };
+  const g = (j) => SHEET_GROUP[j.status] ?? 3;
+  const due = (j) => j.deadline || j.blocker?.deadline || '9999-12-31';
+  const fit = (j) => j.fit?.score ?? -1;
+  const rows = [...jobs].sort((a, b) => g(a) - g(b)
+    || (g(a) === 0 ? due(a).localeCompare(due(b)) || fit(b) - fit(a) : g(a) === 1 ? day(b.appliedOn).localeCompare(day(a.appliedOn)) : g(a) === 2 ? day(b.updatedAt).localeCompare(day(a.updatedAt)) : fit(b) - fit(a))
+    || String(a.company || '').localeCompare(String(b.company || '')));
+  const text = (v) => { const x = String(v ?? '').replace(/\r?\n/g, ' '); return /^[=+\-@]/.test(x) ? `'${x}` : x; };
+  const cell = (x) => (/[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x);
+  const link = (url, label) => (url ? `=HYPERLINK("${String(url).replace(/"/g, '%22')}","${label}")` : '');
+  const lines = [SHEET_HEADER.map(cell).join(',')];
+  rows.forEach((j, i) => {
+    const n = i + 2;
+    lines.push([
+      text(SHEET_GROUP_NAME[g(j)]), text(j.company || ''), text(j.role || ''), text(j.location || ''), text(STATUS[j.status] || j.status || ''), text(clip(todo(j))),
+      [0, 3].includes(g(j)) ? day(j.deadline || j.blocker?.deadline) : '', day(j.appliedOn), String(j.fit?.score ?? ''), text(lastEmail(j)),
+      link(j.applyUrl || j.url || j.blocker?.link || '', 'Open'), j.company ? `=HYPERLINK("https://mail.google.com/mail/u/0/#search/"&ENCODEURL(B${n}),"Search")` : '', day(j.updatedAt),
+    ].map(cell).join(','));
+  });
+  return lines.join('\n') + '\n';
+}
+function sheetRow() {
+  const sh = S.settings?.trackerSheet;
+  const canUpdate = !!(S.mcp && S.canWrite);
+  if (!sh?.url && !canUpdate) return '';
+  const busy = S.busy.has('sheet');
+  return `<div class="sheetrow"><span>Google Sheet of all applications${sh?.updatedAt ? ` · updated ${esc(ago(sh.updatedAt))}` : ''}</span>
+    ${sh?.url ? `<a class="btn quiet small" href="${esc(sh.url)}" target="_blank" rel="noopener">Open sheet ↗</a>` : ''}
+    ${canUpdate ? `<button class="btn ghost small" data-act="sheet" ${busy ? 'disabled' : ''}>${busy ? 'Updating…' : 'Update sheet'}</button>` : ''}</div>`;
+}
+async function updateSheet() {
+  if (!S.mcp || S.busy.has('sheet')) return;
+  S.busy.add('sheet'); render();
+  const prev = S.settings?.trackerSheet || {};
+  try {
+    const input = { title: 'Job applications', contentMimeType: 'text/csv', textContent: sheetCSV(S.jobs) };
+    if (prev.folderId) input.parentId = prev.folderId;
+    const res = await S.mcp.callTool('Google Drive', 'create_file', input);
+    const f = (res && res.payload) || {};
+    if (!f.id) throw { code: 'no_id' };
+    const ok = await write('settings/main', { trackerSheet: { fileId: f.id, url: f.viewUrl || `https://docs.google.com/spreadsheets/d/${f.id}/edit`, folderId: prev.folderId || f.parentId || null, updatedAt: nowIso() } }, 'Sheet updated. Tap Open sheet.');
+    if (ok && prev.fileId && prev.fileId !== f.id) S.mcp.callTool('Google Drive', 'trash_file', { fileId: prev.fileId }).catch(() => {});
+  } catch (e) {
+    const code = e && e.code;
+    toast(code === 'needs_reauth' ? 'Reconnect Google Drive in claude.ai Settings → Connectors, then try again.'
+      : code === 'server_not_connected' ? 'Add Google Drive in claude.ai Settings → Connectors to update the sheet.'
+      : code === 'selection_required' ? 'Choose which Google Drive to use when claude.ai asks, then try again.'
+      : code === 'approval_required' || code === 'not_in_manifest' ? 'Allow Google Drive for this board when claude.ai asks, then tap Update sheet again.'
+      : code === 'server_unavailable' || code === 'upstream_error' || code === 'no_id' ? "Drive didn't confirm. A new sheet may still appear in your Job hunt folder: check before trying again."
+      : code === 'tool_error' ? 'Google Drive refused the sheet. Try again later.'
+      : "Couldn't update the sheet. Try again.");
+  } finally { S.busy.delete('sheet'); render(); }
+}
+
 function viewPipeline() {
   const counts = {
     active: S.jobs.filter((j) => ACTIVE.includes(j.status)).length,
@@ -536,6 +616,7 @@ function viewPipeline() {
       <select id="sort" aria-label="Sort">${[['next', 'Next step first'], ['fit', 'Best fit'], ['updated', 'Recently updated'], ['company', 'Company A–Z']].map(([v, l]) => `<option value="${v}" ${S.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <button class="btn quiet small" data-act="filter" data-f="all" aria-pressed="${f === 'all'}">Show all ${S.jobs.length}</button>
     </div>
+    ${sheetRow()}
   </section>
   <section>${rows.map(card).join('') || `<p class="empty">${q ? 'Nothing matches that search.' : 'Nothing in this stage yet.'}</p>`}</section>`;
 }
@@ -842,6 +923,7 @@ document.addEventListener('click', async (e) => {
       await write('settings/main', { quietRanges: (S.settings?.quietRanges || []).filter((r) => !(r.from === b.dataset.from && r.to === b.dataset.to)) }, 'Removed');
       break;
     case 'runnow': runNow(); break;
+    case 'sheet': updateSheet(); break;
   }
 });
 

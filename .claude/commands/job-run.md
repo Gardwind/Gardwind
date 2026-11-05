@@ -241,6 +241,9 @@ Act on clear patterns: skipped ≥ 3 times for the same reason → add to
 
 ## 9. Digest and wrap-up
 
+The owner's Google Sheet of applications (`settings/main.trackerSheet`) is rebuilt from the board's
+Pipeline tab ("Update sheet"). Don't create, copy or edit it from a run.
+
 1. Write `digests/<today>`. If it already exists (an earlier run or a "Run now" today), merge
    into it: keep its `needsYou` items that are still true, append to `done`, `replies` and `errors`.
    Otherwise create it: `headline` (one sentence, e.g. "3 new jobs to approve, 2

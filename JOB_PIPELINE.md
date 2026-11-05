@@ -25,6 +25,7 @@ answers the occasional question. Everything else happens in a daily cloud run.
 | Engine (fetch, filter, scam check, CV PDF, truth check, form filling) | [`jobpipe/`](jobpipe/) — `node jobpipe/bin/jobpipe.mjs help` |
 | Board data model | [`docs/data-model.md`](docs/data-model.md) |
 | Board page source | [`board/job-hunt-board.html`](board/job-hunt-board.html) |
+| Sheet of all applications | Google Sheet in the owner's Drive (folder "Job hunt"): open it or press **Update sheet** on the board's Pipeline tab. Same columns as `jobpipe tracker`. |
 
 This repository is public, so it holds **code only**. CVs, answers, PDFs and screenshots stay
 on the private board or in temporary folders.

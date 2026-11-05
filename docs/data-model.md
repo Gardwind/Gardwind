@@ -127,6 +127,7 @@ for interviews, built from the CV.
 | `quietRanges` | `[{from, to, label}]` | exam periods: no notifications, no interview slots offered |
 | `timezone` | | IANA name |
 | `runTriggerId` | | the daily scheduled task; the board's "Run now" button fires it |
+| `trackerSheet` | | `{fileId, url, folderId, updatedAt}`: the owner's Google Sheet of all applications (Drive folder "Job hunt"). The board's Pipeline tab opens it, and its "Update sheet" button makes a fresh copy from the live board (Drive here can create a sheet but not edit one) and bins the old one. Runs don't touch it. |
 | `lastRun` | | `{at, ok, summary}` |
 
 ## `sources/main`

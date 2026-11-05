@@ -37,6 +37,7 @@ const HELP = `jobpipe <command> [options]
   form-inspect --url <apply url> --out fields.json [--shot form.png]
   form-fill    --plan plan.json [--submit] [--shots dir] [--code-file code.txt] [--code-timeout 300] [--out result.json]
   stats        --jobs jobs-dir|jobs.json [--out stats.json]
+  tracker      --jobs jobs-dir|jobs.json --out tracker.csv   the owner's applications sheet (CSV for Google Sheets)
   collect      --dir docs-dir --out docs.json                ArtifactData out_dir files -> one array
   selftest     check that Chromium, PDF rendering and the checks work here
 `;
@@ -190,6 +191,16 @@ async function main() {
       const pdf = await renderLetterPdf(letter, master.basics || {}, need('out'));
       out({ pdf, check });
       if (!check.ok || !pdf.fits) process.exitCode = 2;
+      break;
+    }
+    case 'tracker': {
+      const { loadJobs, trackerRows, trackerCSV } = await import('../lib/tracker.mjs');
+      const rows = trackerRows(loadJobs(need('jobs')));
+      const csv = trackerCSV(rows);
+      fs.writeFileSync(need('out'), csv);
+      const groups = {};
+      for (const r of rows) groups[r.group] = (groups[r.group] || 0) + 1;
+      out({ path: need('out'), rows: rows.length, bytes: Buffer.byteLength(csv), groups });
       break;
     }
     case 'fonts': {
